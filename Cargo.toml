@@ -5,4 +5,4 @@ edition = "2024"
 
 [dependencies]
 rocket = "0.5.1"
-lazy_static = "1.5.0"
+rocket_cors = "0.6.0"

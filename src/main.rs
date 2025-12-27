@@ -6,9 +6,11 @@ use std::io;
 use std::path::Path;
 use rocket::Data;
 use rocket::data::ToByteUnit;
+use rocket::http::Method;
 use rocket::http::uri::Absolute;
 use rocket::response::content::RawText;
 use rocket::tokio::fs::File;
+use rocket_cors::{AllowedHeaders, AllowedOrigins};
 
 #[get("/")]
 fn index() -> &'static str {
@@ -38,8 +40,21 @@ async fn post_asset(file_name:String,file: Data<'_>)  -> io::Result<String> {
 
 #[launch]
 fn rocket() -> _ {
-    
+
+    let allowed_origins = AllowedOrigins::all();
+
+    // You can also deserialize this
+    let cors = rocket_cors::CorsOptions {
+        allowed_origins,
+        allowed_methods: vec![Method::Get].into_iter().map(From::from).collect(),
+        allowed_headers: AllowedHeaders::some(&["Authorization", "Accept"]),
+        allow_credentials: true,
+        ..Default::default()
+    }
+        .to_cors().unwrap();
+
     rocket::build()
+        .attach(cors)
         .mount("/", routes![index])
         .mount("/assets", routes![get_asset])
         .mount("/assets", routes![post_asset])
