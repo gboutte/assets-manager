@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 rocket = "0.5.1"
 rocket_cors = "0.6.0"
+filesize = "0.2.0"
