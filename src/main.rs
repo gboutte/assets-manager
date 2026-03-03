@@ -9,8 +9,10 @@ use rocket::fs::TempFile;
 use rocket::http::Method;
 use rocket::http::uri::Absolute;
 use rocket::response::content::RawText;
+use rocket::State;
 use rocket::tokio::fs::File;
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
+use crate::config::Config;
 
 #[get("/")]
 fn index() -> &'static str {
@@ -19,10 +21,9 @@ fn index() -> &'static str {
 
 const HOST: Absolute<'static> = uri!("http://localhost:8000");
 
-#[get("/<file_name>")]
-async fn get_asset(file_name:String) -> Option<RawText<File>> {
-    let root = concat!(env!("CARGO_MANIFEST_DIR"), "/", "upload");
-    let full_path = Path::new(root).join(file_name);
+#[get("/<file_name..>")]
+async fn get_asset(file_name:PathBuf, config: &State<Config>) -> Option<RawText<File>> {
+    let full_path = Path::new(&config.storage_path).join(file_name);
 
     println!("fullPath: {:?}", full_path);
 
@@ -30,22 +31,21 @@ async fn get_asset(file_name:String) -> Option<RawText<File>> {
 }
 
 #[post("/<file_name_buf..>", data = "<file>")]
-async fn post_asset(file_name_buf:PathBuf, mut file:TempFile<'_>)  -> io::Result<String> {
+async fn post_asset(file_name_buf:PathBuf, mut file:TempFile<'_> ,config: &State<Config>)  -> io::Result<String> {
 
     let file_name = file_name_buf.clone().into_os_string().into_string().unwrap();
     let mimetype = file.content_type().unwrap();
     let filesize = file_real_size(file.path().unwrap()).unwrap();
     print!("File {}, type: {}, size: {}",file_name,mimetype,filesize);
 
-    let root = concat!(env!("CARGO_MANIFEST_DIR"), "/", "upload");
-    let full_path = Path::new(root).join(&file_name);
+    let full_path = Path::new(&config.storage_path).join(&file_name);
     
     let prefix = full_path.parent().unwrap();
     std::fs::create_dir_all(prefix).unwrap();
     file.persist_to(full_path).await?;
     
     
-    Ok(uri!(HOST ,get_asset(file_name)).to_string())
+    Ok(uri!(HOST ,get_asset(PathBuf::from(file_name))).to_string())
 }
 
 #[launch]
@@ -65,6 +65,8 @@ fn rocket() -> _ {
     println!("Storage Path: {}", config.storage_path);
     println!("Storage Type: {}", config.storage_type);
 
+
+
     let allowed_origins = AllowedOrigins::all();
 
     // You can also deserialize this
@@ -82,4 +84,5 @@ fn rocket() -> _ {
         .mount("/", routes![index])
         .mount("/assets", routes![get_asset])
         .mount("/assets", routes![post_asset])
+        .manage(config)
 }
