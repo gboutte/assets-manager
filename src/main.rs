@@ -22,12 +22,7 @@ fn rocket() -> _ {
             std::process::exit(1);
         }
     };
-    println!("API Token: {}", config.api_token);
-    println!("Storage Path: {}", config.storage_path);
-    println!("Storage Type: {}", config.storage_type);
-
-
-
+    
     let allowed_origins = AllowedOrigins::all();
 
     // You can also deserialize this
