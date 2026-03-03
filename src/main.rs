@@ -1,12 +1,10 @@
+mod config;
 
 #[macro_use] extern crate rocket;
 
-use std::collections::HashMap;
-use std::io;
+use std::{env, io};
 use std::path::{Path, PathBuf};
 use filesize::file_real_size;
-use rocket::Data;
-use rocket::data::ToByteUnit;
 use rocket::fs::TempFile;
 use rocket::http::Method;
 use rocket::http::uri::Absolute;
@@ -52,6 +50,20 @@ async fn post_asset(file_name_buf:PathBuf, mut file:TempFile<'_>)  -> io::Result
 
 #[launch]
 fn rocket() -> _ {
+
+    if let Err(e) = dotenvy::dotenv() {
+        println!("Could not load .env file: {}", e);
+    }
+    let config = match config::Config::from_env() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("Configuration error: {}", e);
+            std::process::exit(1);
+        }
+    };
+    println!("API Token: {}", config.api_token);
+    println!("Storage Path: {}", config.storage_path);
+    println!("Storage Type: {}", config.storage_type);
 
     let allowed_origins = AllowedOrigins::all();
 
