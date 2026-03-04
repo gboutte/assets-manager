@@ -1,5 +1,6 @@
 use std::env;
 
+#[derive(Debug)]
 pub struct Config {
     pub api_token: String,
     pub storage_path: String,
