@@ -25,6 +25,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_missing_api_token() {
 
         unsafe {
@@ -39,6 +40,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_invalid_storage_type() {
 
         unsafe {
