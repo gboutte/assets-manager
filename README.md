@@ -1,5 +1,8 @@
 # Assets Manager
 
+![Tests](https://github.com/gboutte/assets-manager/actions/workflows/tests.yml/badge.svg)
+![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/gboutte/YOUR_GIST_ID/raw/coverage.json)
+
 A lightweight static asset server written in Rust for learning purposes. Upload and serve versioned static files (JS, CSS, etc.) from Angular builds or any other frontend framework.
 
 ## Planned Features

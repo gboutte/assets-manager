@@ -33,3 +33,28 @@ jobs:
 
       - name: Run tests
         run: cargo test --verbose
+
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin
+
+      - name: Generate code coverage
+        run: cargo tarpaulin --out json --output-dir coverage
+
+      - name: Extract coverage percentage
+        id: coverage
+        run: |
+          COVERAGE=$(jq '.files | map(.covered / .coverable * 100) | add / length | floor' coverage/tarpaulin-report.json)
+          echo "percentage=$COVERAGE" >> $GITHUB_OUTPUT
+
+      - name: Create coverage badge
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        if: github.ref == 'refs/heads/main'
+        with:
+          auth: ${{ secrets.GIST_TOKEN }}
+          gistID: YOUR_GIST_ID
+          filename: coverage.json
+          label: coverage
+          message: ${{ steps.coverage.outputs.percentage }}%
+          valColorRange: ${{ steps.coverage.outputs.percentage }}
+          maxColorRange: 100
+          minColorRange: 0
