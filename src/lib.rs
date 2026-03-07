@@ -1,6 +1,7 @@
 pub mod config;
 pub mod assets;
 pub mod health;
+pub mod tags;
 
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
 use rocket::http::Method;
@@ -18,6 +19,7 @@ pub fn create_rocket(config: config::Config) -> rocket::Rocket<rocket::Build> {
     rocket::build()
         .attach(cors)
         .mount("/health", rocket::routes![health::health])
+        .mount("/tags", rocket::routes![tags::tags_list])
         .mount("/", rocket::routes![assets::get_asset, assets::post_asset])
         .manage(config)
 }
