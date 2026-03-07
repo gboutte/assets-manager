@@ -51,7 +51,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         with:
           auth: ${{ secrets.GIST_TOKEN }}
-          gistID: ${{ secrets.YOUR_GIST_ID }}
+          gistID: bc333884a8d5cfb4d495a3e56152d12b
           filename: coverage.json
           label: coverage
           message: ${{ steps.coverage.outputs.percentage }}%
