@@ -4,10 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-rocket = "0.5.1"
+rocket = { version = "0.5.1", features = ["json"] }
 rocket_cors = "0.6.0"
 filesize = "0.2.0"
 dotenvy = "0.15.7"
+serde = { version = "1.0.228", features = ["derive"] }
 
 
 [dev-dependencies]

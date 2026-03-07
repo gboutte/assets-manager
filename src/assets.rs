@@ -1,6 +1,7 @@
 use std::io;
 use std::path::{Path, PathBuf};
 use filesize::file_real_size;
+use rocket::{get, post, uri};
 use rocket::fs::TempFile;
 use rocket::http::uri::Absolute;
 use rocket::response::content::RawText;

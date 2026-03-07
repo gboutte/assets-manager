@@ -19,6 +19,7 @@ dependencies = [
  "filesize",
  "rocket",
  "rocket_cors",
+ "serde",
  "serial_test",
 ]
 
@@ -990,6 +991,7 @@ dependencies = [
  "rocket_codegen",
  "rocket_http",
  "serde",
+ "serde_json",
  "state",
  "tempfile",
  "time",
