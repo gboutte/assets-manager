@@ -165,3 +165,33 @@ fn cleanup_upload_dirs() {
         }
     }
 }
+
+#[test]
+#[serial]
+fn test_upload_file() {
+
+
+    //Clean up
+    cleanup_upload_dirs();
+
+    let config: Config = Config {
+        api_token: "test-token".to_string(),
+        storage_path: "./upload".to_string(),
+        storage_type: "filesystem".to_string(),
+    };
+
+    let client = Client::tracked(create_rocket(config)).unwrap();
+
+    // TODO: Send POST request with file
+    // Hint: Use client.post() with body
+
+
+    let req = client.post("/")
+        .header(ContentType::)
+        .cookie(("name", "value"))
+        .body(r#"{ "value": 42 }"#);
+
+    //Clean up
+    cleanup_upload_dirs();
+
+}
