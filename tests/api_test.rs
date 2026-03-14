@@ -83,9 +83,9 @@ fn tags_list() {
 
     let result = response.into_json::<TagsList>();
     assert!(result.is_some());
-    let tagsRespo = result.unwrap();
-    assert_eq!(tagsRespo.tags.len(), 1);
-    assert_eq!(tagsRespo.tags[0], "test-tag");
+    let tags_respo = result.unwrap();
+    assert_eq!(tags_respo.tags.len(), 1);
+    assert_eq!(tags_respo.tags[0], "test-tag");
 
 
     //Clean up
@@ -182,16 +182,38 @@ fn test_upload_file() {
 
     let client = Client::tracked(create_rocket(config)).unwrap();
 
-    // TODO: Send POST request with file
-    // Hint: Use client.post() with body
 
+    let (content_type, body) = multipart_body("test-file.txt", "Hello world!");
+    let response = client.post("/upload/v1.0.0/test-file.txt")
+        .header(content_type)
+        .body(body)
+        .dispatch();
 
-    let req = client.post("/")
-        .header(ContentType::)
-        .cookie(("name", "value"))
-        .body(r#"{ "value": 42 }"#);
+    assert_eq!(response.status(), Status::Ok);
+    assert_eq!(response.content_type(), Some(ContentType::Plain));
+    //Should be the get asset uri
+    assert_eq!(response.into_string(), Some("http://localhost:8000/v1.0.0/test-file.txt".to_string()));
+
+    assert!(Path::new("./upload/v1.0.0/test-file.txt").exists());
+    //Check file content
+    let file_content = std::fs::read("./upload/v1.0.0/test-file.txt").unwrap();
+    assert_eq!(file_content, b"Hello world!");
 
     //Clean up
     cleanup_upload_dirs();
 
+}
+
+
+fn multipart_body(filename: &str, content: &str) -> (ContentType, String) {
+    let boundary = "----TestBoundary";
+    let body = format!(
+        "--{boundary}\r\n\
+         Content-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\n\
+         Content-Type: application/octet-stream\r\n\r\n\
+         {content}\r\n\
+         --{boundary}--\r\n"
+    );
+    let content_type = ContentType::new("multipart", "form-data").with_params([("boundary", boundary)]);
+    (content_type, body)
 }
