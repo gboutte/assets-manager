@@ -6,6 +6,7 @@ use rocket::fs::TempFile;
 use rocket::http::Status;
 use rocket::State;
 use crate::assets;
+use crate::auth_guard::IsAuth;
 use crate::config::Config;
 use crate::host::RequestInfo;
 
@@ -16,6 +17,7 @@ pub struct Upload<'f> {
 
 #[post("/<tag>/<file_name_buf..>", format = "multipart/form-data", data = "<form>")]
 pub async fn post_asset(
+    _auth: IsAuth,
     tag: String,
     file_name_buf:PathBuf,
     mut form: Form<Upload<'_>> ,

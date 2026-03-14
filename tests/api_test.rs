@@ -1,5 +1,5 @@
 use std::path::Path;
-use rocket::http::{ContentType, Status};
+use rocket::http::{ContentType, Header, Status};
 use rocket::local::blocking::{Client};
 use assets_manager::config::Config;
 use assets_manager::create_rocket;
@@ -184,8 +184,11 @@ fn test_upload_file() {
 
 
     let (content_type, body) = multipart_body("test-file.txt", "Hello world!");
+    let auth_header = Header::new("Authorization","Bearer test-token");
+
     let response = client.post("/upload/v1.0.0/test-file.txt")
         .header(content_type)
+        .header(auth_header)
         .body(body)
         .dispatch();
 
@@ -204,6 +207,37 @@ fn test_upload_file() {
 
 }
 
+#[test]
+#[serial]
+fn test_upload_file_no_auth() {
+
+    //Clean up
+    cleanup_upload_dirs();
+
+    let config: Config = Config {
+        api_token: "test-token".to_string(),
+        storage_path: "./upload".to_string(),
+        storage_type: "filesystem".to_string(),
+    };
+
+    let client = Client::tracked(create_rocket(config)).unwrap();
+
+
+    let (content_type, body) = multipart_body("test-file.txt", "Hello world!");
+
+    let response = client.post("/upload/v1.0.0/test-file.txt")
+        .header(content_type)
+        .body(body)
+        .dispatch();
+
+    assert_eq!(response.status(), Status::Unauthorized);
+    //Should be the get asset uri
+
+    assert!(!Path::new("./upload/v1.0.0/test-file.txt").exists());
+
+    //Clean up
+    cleanup_upload_dirs();
+}
 
 fn multipart_body(filename: &str, content: &str) -> (ContentType, String) {
     let boundary = "----TestBoundary";
