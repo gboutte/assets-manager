@@ -4,21 +4,24 @@ use rocket::{post, uri, FromForm};
 use rocket::form::Form;
 use rocket::fs::TempFile;
 use rocket::http::Status;
-use rocket::http::uri::Absolute;
 use rocket::State;
 use crate::assets;
 use crate::config::Config;
+use crate::host::RequestInfo;
 
-
-
-const HOST: Absolute<'static> = uri!("http://localhost:8000");
 #[derive(FromForm)]
 pub struct Upload<'f> {
     file: TempFile<'f>
 }
 
 #[post("/<tag>/<file_name_buf..>", format = "multipart/form-data", data = "<form>")]
-pub async fn post_asset(tag: String,file_name_buf:PathBuf, mut form: Form<Upload<'_>> ,config: &State<Config>)  -> Result<String, Status> {
+pub async fn post_asset(
+    tag: String,
+    file_name_buf:PathBuf,
+    mut form: Form<Upload<'_>> ,
+    config: &State<Config>,
+    request_info: RequestInfo,
+)  -> Result<String, Status> {
 
     let file_name = file_name_buf.clone().into_os_string().into_string().unwrap();
     let mimetype = form.file.content_type().cloned();
@@ -37,10 +40,11 @@ pub async fn post_asset(tag: String,file_name_buf:PathBuf, mut form: Form<Upload
     std::fs::create_dir_all(prefix).unwrap();
     let _ = form.file.persist_to(full_path).await;
 
-    let uri = uri!(HOST ,assets::get_asset(tag,PathBuf::from(file_name)));
+    let path = uri!(assets::get_asset(&tag, PathBuf::from(&file_name)));
+    let full_url = format!("{}://{}{}", request_info.protocol, request_info.host, path);
 
 
-    print!("File {}, type: {}, size: {}",uri,mimetype.unwrap(),filesize);
+    print!("File {}, type: {}, size: {}",full_url,mimetype.unwrap(),filesize);
 
-    Ok(uri.to_string())
+    Ok(full_url.to_string())
 }

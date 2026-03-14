@@ -3,6 +3,7 @@ pub mod assets;
 pub mod health;
 pub mod tags;
 mod upload;
+mod host;
 
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
 use rocket::http::Method;
