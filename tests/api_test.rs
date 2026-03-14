@@ -192,7 +192,7 @@ fn test_upload_file() {
     assert_eq!(response.status(), Status::Ok);
     assert_eq!(response.content_type(), Some(ContentType::Plain));
     //Should be the get asset uri
-    assert_eq!(response.into_string(), Some("http://localhost:8000/v1.0.0/test-file.txt".to_string()));
+    assert_eq!(response.into_string(), Some("http://localhost/v1.0.0/test-file.txt".to_string()));
 
     assert!(Path::new("./upload/v1.0.0/test-file.txt").exists());
     //Check file content
