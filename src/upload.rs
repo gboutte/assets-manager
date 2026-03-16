@@ -5,6 +5,7 @@ use rocket::form::Form;
 use rocket::fs::TempFile;
 use rocket::http::Status;
 use rocket::State;
+use zip::ZipArchive;
 use crate::assets;
 use crate::auth_guard::IsAuth;
 use crate::config::Config;
@@ -15,7 +16,7 @@ pub struct Upload<'f> {
     file: TempFile<'f>
 }
 
-#[post("/<tag>/<file_name_buf..>", format = "multipart/form-data", data = "<form>")]
+#[post("/<tag>/<file_name_buf..>", format = "multipart/form-data", data = "<form>", rank = 2)]
 pub async fn post_asset(
     _auth: IsAuth,
     tag: String,
@@ -49,4 +50,38 @@ pub async fn post_asset(
     print!("File {}, type: {}, size: {}",full_url,mimetype.unwrap(),filesize);
 
     Ok(full_url.to_string())
+}
+
+
+
+#[post("/<tag>", format = "multipart/form-data", data = "<form>", rank = 1)]
+pub async fn post_asset_zip(
+    _auth: IsAuth,
+    tag: String,
+    form: Form<Upload<'_>> ,
+    config: &State<Config>,
+)  -> Result< String,Status> {
+
+
+    let base_path = Path::new(&config.storage_path).canonicalize().map_err(|_| Status::InternalServerError)?;
+    let full_path = base_path.join(&tag);
+
+
+    if !full_path.starts_with(&base_path) {
+        return Err(Status::BadRequest);  // Path traversal attempt (e.g., symlink escape)
+    }
+
+
+    let prefix = full_path.parent().unwrap();
+    std::fs::create_dir_all(prefix).unwrap();
+
+
+    //Check that the file is a zip
+    let file = std::fs::File::open(form.file.path().unwrap()).unwrap();
+    let mut zip = ZipArchive::new(file).unwrap();
+
+    zip.extract(&full_path).map_err(|_| Status::InternalServerError)?;
+
+
+    Ok(format!("Extracted {} files to {}", zip.len(), tag))
 }

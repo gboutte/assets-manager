@@ -6,6 +6,10 @@ use assets_manager::create_rocket;
 use rocket::serde::Deserialize;
 use serial_test::serial;
 
+use std::io::{Write, Cursor};
+use zip::write::SimpleFileOptions;
+use zip::ZipWriter;
+
 #[derive(Deserialize)]
 struct HealthResult {
     status: String,
@@ -239,6 +243,73 @@ fn test_upload_file_no_auth() {
     cleanup_upload_dirs();
 }
 
+#[test]
+#[serial]
+fn test_upload_zip() {
+
+
+    //Clean up
+    cleanup_upload_dirs();
+
+    let config: Config = Config {
+        api_token: "test-token".to_string(),
+        storage_path: "./upload".to_string(),
+        storage_type: "filesystem".to_string(),
+    };
+
+    let client = Client::tracked(create_rocket(config)).unwrap();
+
+
+    let auth_header = Header::new("Authorization","Bearer test-token");
+    // Create a ZIP in memory or read from test fixtures
+    let zip_bytes = create_test_zip(); // Helper to create ZIP with test files
+
+
+    let (content_type, body) = multipart_body_binary("archive.zip", &zip_bytes, "application/zip");
+
+    let response = client.post("/upload/v1.0.0")
+        .header(content_type)
+        .header(auth_header)
+        .body(body)
+        .dispatch();
+
+    assert_eq!(response.status(), Status::Ok);
+
+    assert!(Path::new("./upload/v1.0.0/file1.txt").exists());
+    assert!(Path::new("./upload/v1.0.0/file2.txt").exists());
+    //Check file content
+    let file_content1 = std::fs::read("./upload/v1.0.0/file1.txt").unwrap();
+    assert_eq!(file_content1, b"Hello world File 1!");
+
+    let file_content2 = std::fs::read("./upload/v1.0.0/file2.txt").unwrap();
+    assert_eq!(file_content2, b"Hello world File 2!");
+
+    //Clean up
+    cleanup_upload_dirs();
+
+}
+
+
+
+fn create_test_zip() -> Vec<u8> {
+    let mut buffer = Cursor::new(Vec::new());
+    let mut zip = ZipWriter::new(&mut buffer);
+
+    let options = SimpleFileOptions::default();
+
+    // Add file1.txt
+    zip.start_file("file1.txt", options).unwrap();
+    zip.write_all(b"Hello world File 1!").unwrap();
+
+    // Add file2.txt
+    zip.start_file("file2.txt", options).unwrap();
+    zip.write_all(b"Hello world File 2!").unwrap();
+
+    zip.finish().unwrap();
+    buffer.into_inner()
+}
+
+
 fn multipart_body(filename: &str, content: &str) -> (ContentType, String) {
     let boundary = "----TestBoundary";
     let body = format!(
@@ -248,6 +319,22 @@ fn multipart_body(filename: &str, content: &str) -> (ContentType, String) {
          {content}\r\n\
          --{boundary}--\r\n"
     );
+    let content_type = ContentType::new("multipart", "form-data").with_params([("boundary", boundary)]);
+    (content_type, body)
+}
+
+fn multipart_body_binary(filename: &str, content: &[u8], content_type: &str) -> (ContentType, Vec<u8>) {
+    let boundary = "----TestBoundary";
+
+    let mut body = Vec::new();
+    body.extend_from_slice(format!(
+        "--{boundary}\r\n\
+         Content-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\n\
+         Content-Type: {content_type}\r\n\r\n"
+    ).as_bytes());
+    body.extend_from_slice(content);  // Binary ZIP data
+    body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+
     let content_type = ContentType::new("multipart", "form-data").with_params([("boundary", boundary)]);
     (content_type, body)
 }
