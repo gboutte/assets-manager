@@ -99,6 +99,34 @@ fn tags_list() {
 }
 #[test]
 #[serial]
+fn delete_tag() {
+
+    cleanup_upload_dirs();
+    let config: Config = Config {
+        api_token: "test-token".to_string(),
+        storage_path: "./upload".to_string(),
+        storage_type: "filesystem".to_string(),
+    };
+
+    let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
+
+    std::fs::create_dir("./upload/test-tag").unwrap();
+
+
+
+    let response = client.delete("/tags/test-tag").dispatch();
+    assert_eq!(response.status(), Status::Unauthorized);
+
+
+    assert!(Path::new("./upload/test-tag").exists());
+
+    let response = client.delete("/tags/test-tag").header(Header::new("Authorization","Bearer test-token")).dispatch();
+    assert_eq!(response.status(), Status::Ok);
+
+    assert!(!Path::new("./upload/test-tag").exists());
+}
+#[test]
+#[serial]
 fn file_get() {
 
 

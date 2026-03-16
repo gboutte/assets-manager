@@ -22,7 +22,7 @@ pub fn create_rocket(config: config::Config) -> rocket::Rocket<rocket::Build> {
     rocket::build()
         .attach(cors)
         .mount("/health", rocket::routes![health::health])
-        .mount("/tags", rocket::routes![tags::tags_list])
+        .mount("/tags", rocket::routes![tags::tags_list,tags::delete_tag])
         .mount("/upload", rocket::routes![upload::post_asset, upload::post_asset_zip])
         .mount("/", rocket::routes![assets::get_asset])
         .manage(config)

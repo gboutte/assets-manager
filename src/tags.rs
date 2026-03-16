@@ -1,7 +1,9 @@
 use std::path::Path;
-use rocket::{get, State};
+use rocket::{delete, get, State};
+use rocket::http::Status;
 use rocket::serde::json::Json;
 use rocket::serde::Serialize;
+use crate::auth_guard::IsAuth;
 use crate::config::Config;
 
 // Un struct pour la réponse
@@ -32,4 +34,26 @@ pub fn tags_list(config: &State<Config>) -> Json<TagsResponse> {
          .collect();
 
     Json(TagsResponse { tags })
+}
+
+#[delete("/<tag>")]
+pub async fn delete_tag(
+    _auth: IsAuth,
+    tag: String,
+    config: &State<Config>,
+) -> Result<(), Status>{
+
+
+    let base_path = Path::new(&config.storage_path).canonicalize().map_err(|_| Status::InternalServerError)?;
+    let full_path = base_path.join(&tag);
+
+
+    if !full_path.starts_with(&base_path) {
+        return Err(Status::BadRequest);  // Path traversal attempt (e.g., symlink escape)
+    }
+
+
+    std::fs::remove_dir(full_path).unwrap();
+
+    Ok(())
 }
