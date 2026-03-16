@@ -53,7 +53,7 @@ pub async fn delete_tag(
     }
 
 
-    std::fs::remove_dir(full_path).unwrap();
+    std::fs::remove_dir_all(full_path).map_err(|_| Status::InternalServerError)?;
 
     Ok(())
 }

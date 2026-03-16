@@ -32,7 +32,7 @@ impl Config {
         if !missing.is_empty(){
             return Err(format!("Missing environment variables: {}", missing.join(", ")));
         }
-        let storage_type_value = storage_type.unwrap();
+        let storage_type_value = storage_type.unwrap_or("filesystem".to_string());
         if !valid_storage_types.contains(&storage_type_value.as_str()){
             return Err(format!("Invalid storage type: {}, allowed values {}", storage_type_value, valid_storage_types.join(", ")));
         }

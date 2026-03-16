@@ -3,7 +3,7 @@ use filesize::file_real_size;
 use rocket::{post, uri, FromForm};
 use rocket::form::Form;
 use rocket::fs::TempFile;
-use rocket::http::Status;
+use rocket::http::{ContentType, Status};
 use rocket::State;
 use zip::ZipArchive;
 use crate::assets;
@@ -26,9 +26,11 @@ pub async fn post_asset(
     request_info: RequestInfo,
 )  -> Result<String, Status> {
 
-    let file_name = file_name_buf.clone().into_os_string().into_string().unwrap();
+    let file_name = file_name_buf.clone().into_os_string().into_string().map_err(|_| Status::InternalServerError)?;
     let mimetype = form.file.content_type().cloned();
-    let filesize = file_real_size(form.file.path().unwrap()).unwrap();
+    let uploaded_filepath = form.file.path().ok_or_else(|| Status::InternalServerError)?;
+
+    let filesize = file_real_size(uploaded_filepath).map_err(|_| Status::InternalServerError)?;
 
     let base_path = Path::new(&config.storage_path).canonicalize().map_err(|_| Status::InternalServerError)?;
     let full_path = base_path.join(&tag).join(&file_name);
@@ -39,15 +41,19 @@ pub async fn post_asset(
     }
 
 
-    let prefix = full_path.parent().unwrap();
-    std::fs::create_dir_all(prefix).unwrap();
+    let prefix = full_path.parent().ok_or_else(|| Status::InternalServerError)?;
+    std::fs::create_dir_all(prefix).map_err(|_| Status::InternalServerError)?;
     let _ = form.file.persist_to(full_path).await;
 
     let path = uri!(assets::get_asset(&tag, PathBuf::from(&file_name)));
     let full_url = format!("{}://{}{}", request_info.protocol, request_info.host, path);
 
 
-    print!("File {}, type: {}, size: {}",full_url,mimetype.unwrap(),filesize);
+    print!(
+        "File {}, type: {}, size: {}",
+        full_url,
+        mimetype.unwrap_or(ContentType::Binary),
+        filesize);
 
     Ok(full_url.to_string())
 }
@@ -72,13 +78,15 @@ pub async fn post_asset_zip(
     }
 
 
-    let prefix = full_path.parent().unwrap();
-    std::fs::create_dir_all(prefix).unwrap();
+    let prefix = full_path.parent().ok_or_else(|| Status::InternalServerError)?;
+    std::fs::create_dir_all(prefix).map_err(|_| Status::InternalServerError)?;
 
 
     //Check that the file is a zip
-    let file = std::fs::File::open(form.file.path().unwrap()).unwrap();
-    let mut zip = ZipArchive::new(file).unwrap();
+    let uploaded_filepath = form.file.path().ok_or_else(|| Status::InternalServerError)?;
+
+    let file = std::fs::File::open(uploaded_filepath).map_err(|_| Status::InternalServerError)?;
+    let mut zip = ZipArchive::new(file).map_err(|_| Status::InternalServerError)?;
 
     zip.extract(&full_path).map_err(|_| Status::InternalServerError)?;
 
