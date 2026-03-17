@@ -10,6 +10,7 @@ use crate::assets;
 use crate::auth_guard::IsAuth;
 use crate::config::Config;
 use crate::host::RequestInfo;
+use crate::storage::StoragePath;
 
 #[derive(FromForm)]
 pub struct Upload<'f> {
@@ -32,13 +33,12 @@ pub async fn post_asset(
 
     let filesize = file_real_size(uploaded_filepath).map_err(|_| Status::InternalServerError)?;
 
-    let base_path = Path::new(&config.storage_path).canonicalize().map_err(|_| Status::InternalServerError)?;
-    let full_path = base_path.join(&tag).join(&file_name);
+    let storage_path = StoragePath::new(&config.storage_path).map_err(|_| Status::InternalServerError)?;
 
+    let file_path = Path::new(&tag).join(&file_name);
+    let file_path_str =file_path.to_str().ok_or_else(|| Status::BadRequest)?;
 
-    if !full_path.starts_with(&base_path) {
-        return Err(Status::BadRequest);  // Path traversal attempt (e.g., symlink escape)
-    }
+    let full_path = storage_path.resolve(file_path_str).map_err(|_| Status::BadRequest)?;
 
 
     let prefix = full_path.parent().ok_or_else(|| Status::InternalServerError)?;
@@ -67,15 +67,8 @@ pub async fn post_asset_zip(
     form: Form<Upload<'_>> ,
     config: &State<Config>,
 )  -> Result< String,Status> {
-
-
-    let base_path = Path::new(&config.storage_path).canonicalize().map_err(|_| Status::InternalServerError)?;
-    let full_path = base_path.join(&tag);
-
-
-    if !full_path.starts_with(&base_path) {
-        return Err(Status::BadRequest);  // Path traversal attempt (e.g., symlink escape)
-    }
+    let storage_path = StoragePath::new(&config.storage_path).map_err(|_| Status::InternalServerError)?;
+    let full_path = storage_path.resolve(&tag).map_err(|_| Status::BadRequest)?;
 
 
     let prefix = full_path.parent().ok_or_else(|| Status::InternalServerError)?;

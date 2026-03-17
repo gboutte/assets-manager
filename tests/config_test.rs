@@ -55,4 +55,36 @@ mod tests {
         }
 
     }
+    #[test]
+    #[serial]
+    fn test_no_storage_path() {
+
+        unsafe {
+            env::set_var("API_TOKEN", "test-token");
+            env::set_var("STORAGE_TYPE", "filesystem");
+            env::remove_var("STORAGE_PATH");
+
+
+            let config = config::Config::from_env();
+            assert!(config.is_err());
+            assert!(config.unwrap_err().contains("Missing environment variables: STORAGE_PATH"));
+        }
+
+    }
+    #[test]
+    #[serial]
+    fn test_no_storage_type() {
+
+        unsafe {
+            env::set_var("API_TOKEN", "test-token");
+            env::set_var("STORAGE_PATH", "./test-uploads");
+            env::remove_var("STORAGE_TYPE");
+
+
+            let config = config::Config::from_env();
+            assert!(config.is_err());
+            assert!(config.unwrap_err().contains("Missing environment variables: STORAGE_TYPE"));
+        }
+
+    }
 }

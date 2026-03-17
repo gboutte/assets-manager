@@ -1,4 +1,6 @@
 pub mod config;
+
+pub mod storage;
 pub mod assets;
 pub mod health;
 pub mod tags;
