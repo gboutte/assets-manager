@@ -23,10 +23,13 @@ RUN useradd --system --uid 10001 --no-create-home app \
 
 COPY --from=builder /usr/local/bin/assets-manager /usr/local/bin/assets-manager
 
+# ROCKET_LOG_LEVEL: a release build defaults to "critical", which hides info logs
+# (uploads, deleted tags, cleanup runs)
 ENV HOST=0.0.0.0 \
     PORT=8000 \
     STORAGE_TYPE=filesystem \
-    STORAGE_PATH=/data
+    STORAGE_PATH=/data \
+    ROCKET_LOG_LEVEL=normal
 
 VOLUME /data
 EXPOSE 8000
