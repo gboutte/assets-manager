@@ -1,0 +1,10 @@
+# Only Cargo.toml, Cargo.lock and src/ are needed to build the image
+target
+.env
+upload
+coverage
+docs
+tests
+.git
+.github
+.idea
