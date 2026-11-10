@@ -1,5 +1,6 @@
 use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome};
+use subtle::ConstantTimeEq;
 use crate::config::Config;
 
 pub struct IsAuth;
@@ -19,9 +20,16 @@ impl<'r> FromRequest<'r> for IsAuth {
             _ => return Outcome::Error((Status::InternalServerError, ())),
         };
 
-        let bearer_token = request.headers().get_one("Authorization").unwrap_or("");
-        let expected = format!("Bearer {}", config.api_token);
-        if bearer_token != expected {
+        let token = request.headers()
+            .get_one("Authorization")
+            .and_then(|header| header.strip_prefix("Bearer "))
+            .unwrap_or("");
+
+        // Constant-time comparison so the response time does not leak how much of the token matched
+        let valid = config.api_tokens.iter()
+            .any(|expected| bool::from(expected.as_bytes().ct_eq(token.as_bytes())));
+
+        if token.is_empty() || !valid {
             return Outcome::Error((Status::Unauthorized, ()));
         }
 

@@ -15,6 +15,7 @@ fn rocket() -> rocket::Rocket<rocket::Build> {
             std::process::exit(1);
         }
     };
+    println!("{} API token(s) loaded", config.api_tokens.len());
     
     create_rocket(config)
 }

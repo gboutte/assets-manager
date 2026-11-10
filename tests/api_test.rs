@@ -20,7 +20,7 @@ struct HealthResult {
 fn health_check() {
 
     let config: Config = Config {
-        api_token: "test-token".to_string(),
+        api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
     };
@@ -39,7 +39,7 @@ fn health_check() {
 fn health_check_degraded() {
 
     let config: Config = Config {
-        api_token: "test-token".to_string(),
+        api_tokens: vec!["test-token".to_string()],
         storage_path: "./test-uploads".to_string(),
         storage_type: "filesystem".to_string(),
     };
@@ -65,7 +65,7 @@ fn tags_list() {
 
     cleanup_upload_dirs();
     let config: Config = Config {
-        api_token: "test-token".to_string(),
+        api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
     };
@@ -103,7 +103,7 @@ fn delete_tag() {
 
     cleanup_upload_dirs();
     let config: Config = Config {
-        api_token: "test-token".to_string(),
+        api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
     };
@@ -131,7 +131,7 @@ fn delete_tag_not_found() {
 
     cleanup_upload_dirs();
     let config: Config = Config {
-        api_token: "test-token".to_string(),
+        api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
     };
@@ -143,6 +143,31 @@ fn delete_tag_not_found() {
 }
 #[test]
 #[serial]
+fn multiple_api_tokens() {
+
+    cleanup_upload_dirs();
+    let config: Config = Config {
+        api_tokens: vec!["token-ci".to_string(), "token-deploy".to_string()],
+        storage_path: "./upload".to_string(),
+        storage_type: "filesystem".to_string(),
+    };
+
+    let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
+
+    // Authenticated requests on an unknown tag get 404, rejected ones get 401
+    for (header, expected) in [
+        ("Bearer token-ci", Status::NotFound),
+        ("Bearer token-deploy", Status::NotFound),
+        ("Bearer token-unknown", Status::Unauthorized),
+        ("Bearer ", Status::Unauthorized),
+        ("token-ci", Status::Unauthorized),
+    ] {
+        let response = client.delete("/tags/unknown-tag").header(Header::new("Authorization", header)).dispatch();
+        assert_eq!(response.status(), expected, "Authorization: {}", header);
+    }
+}
+#[test]
+#[serial]
 fn file_get() {
 
 
@@ -150,7 +175,7 @@ fn file_get() {
 
 
     let config: Config = Config {
-        api_token: "test-token".to_string(),
+        api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
     };
@@ -184,7 +209,7 @@ fn file_get_path_traversal() {
 
 
     let config: Config = Config {
-        api_token: "test-token".to_string(),
+        api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
     };
@@ -223,7 +248,7 @@ fn test_upload_file() {
     cleanup_upload_dirs();
 
     let config: Config = Config {
-        api_token: "test-token".to_string(),
+        api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
     };
@@ -263,7 +288,7 @@ fn test_upload_file_no_auth() {
     cleanup_upload_dirs();
 
     let config: Config = Config {
-        api_token: "test-token".to_string(),
+        api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
     };
@@ -295,7 +320,7 @@ fn test_upload_file_persist_error() {
     cleanup_upload_dirs();
 
     let config: Config = Config {
-        api_token: "test-token".to_string(),
+        api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
     };
@@ -329,7 +354,7 @@ fn test_upload_zip() {
     cleanup_upload_dirs();
 
     let config: Config = Config {
-        api_token: "test-token".to_string(),
+        api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
     };
@@ -380,7 +405,7 @@ fn test_upload_zip_slip() {
     }
 
     let config: Config = Config {
-        api_token: "test-token".to_string(),
+        api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
     };
@@ -423,7 +448,7 @@ fn invalid_tag() {
     cleanup_upload_dirs();
 
     let config: Config = Config {
-        api_token: "test-token".to_string(),
+        api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
     };

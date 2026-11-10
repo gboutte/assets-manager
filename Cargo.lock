@@ -47,6 +47,7 @@ dependencies = [
  "rocket_cors",
  "serde",
  "serial_test",
+ "subtle",
  "zip",
 ]
 

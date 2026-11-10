@@ -31,7 +31,9 @@ HOST=0.0.0.0
 PORT=8000
 
 # Authentication
+# Every variable starting with API_TOKEN is a valid token (empty values are ignored)
 API_TOKEN=your-secret-token-here
+# API_TOKEN_CI=another-token
 
 # Storage
 STORAGE_TYPE=filesystem
@@ -58,7 +60,9 @@ STORAGE_PATH=./uploads
 | `GET` | `/tags` | List all available tags |
 | `GET` | `/<tag>/<path>` | Serve a file from a specific tag |
 
-### Protected Endpoints (require `Authorization: Bearer <API_TOKEN>`)
+### Protected Endpoints (require `Authorization: Bearer <token>`)
+
+`<token>` can be the value of any `API_TOKEN*` variable, so you can give each consumer (CI, deploy script…) its own token and revoke it independently.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
