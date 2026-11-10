@@ -229,7 +229,8 @@ struct TagStatsResponse {
 }
 
 fn get_stats(client: &Client, host: Option<&str>, tag: &str) -> (Status, Option<TagStatsResponse>) {
-    let mut request = client.get(format!("/tags/{}/stats", tag));
+    let mut request = client.get(format!("/tags/{}/stats", tag))
+        .header(Header::new("Authorization", "Bearer test-token"));
     if let Some(host) = host {
         request = request.header(Header::new("Host", host.to_string()));
     }
@@ -309,6 +310,27 @@ fn stats_route_per_host() {
     // The tag only exists on domain1
     assert_eq!(get_stats(&client, Some("assets.domain2.com"), "v1.0.0").0, Status::NotFound);
     assert_eq!(get_stats(&client, Some("assets.domain3.com"), "v1.0.0").0, Status::NotFound);
+
+    cleanup();
+}
+
+#[test]
+#[serial]
+fn stats_route_requires_token() {
+    cleanup();
+    let client = Client::tracked(create_rocket(test_config())).unwrap();
+    assert_eq!(upload(&client, None, "v1.0.0/f.txt"), Status::Ok);
+
+    for header in [None, Some("Bearer wrong-token"), Some("test-token")] {
+        let mut request = client.get("/tags/v1.0.0/stats");
+        if let Some(header) = header {
+            request = request.header(Header::new("Authorization", header));
+        }
+        assert_eq!(request.dispatch().status(), Status::Unauthorized, "Authorization: {:?}", header);
+    }
+
+    // Same answer for a tag that doesn't exist: no way to discover tags without a token
+    assert_eq!(client.get("/tags/unknown/stats").dispatch().status(), Status::Unauthorized);
 
     cleanup();
 }

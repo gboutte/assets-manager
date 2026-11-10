@@ -81,7 +81,6 @@ STORAGE_PATH=./uploads
 |--------|----------|-------------|
 | `GET` | `/health` | Health check |
 | `GET` | `/tags` | List all available tags |
-| `GET` | `/tags/<tag>/stats` | Upload date, last hit and hit count of a tag (Unix timestamps in seconds) |
 | `GET` | `/<tag>/<path>` | Serve a file from a specific tag |
 
 ### Protected Endpoints (require `Authorization: Bearer <token>`)
@@ -90,6 +89,7 @@ STORAGE_PATH=./uploads
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| `GET` | `/tags/<tag>/stats` | Upload date, last hit and hit count of a tag (Unix timestamps in seconds). 404 when stats are disabled |
 | `POST` | `/upload/<tag>/<filename>` | Upload a single file |
 | `POST` | `/upload/<tag>` | Upload a ZIP archive (extracts contents) |
 | `DELETE` | `/tags/<tag>` | Delete a tag and all its files |

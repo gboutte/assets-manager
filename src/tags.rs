@@ -35,13 +35,20 @@ pub fn tags_list(storage: StoragePath) -> Result<Json<TagsResponse>, Status> {
     Ok(Json(TagsResponse { tags }))
 }
 
+// Option<IsAuth> instead of IsAuth: a refused IsAuth forwards the request, and the next
+// matching route (GET /<tag>/<file..>) would answer 404 instead of 401.
+// The token is checked first, so the response doesn't reveal whether the tag exists
 #[get("/<tag>/stats")]
 pub async fn tag_stats(
+    auth: Option<IsAuth>,
     tag: String,
     storage: StoragePath,
     stats: &State<Stats>,
 ) -> Result<Json<TagStats>, Status> {
 
+    if auth.is_none() {
+        return Err(Status::Unauthorized);
+    }
     validate_tag(&tag)?;
 
     if !storage.resolve(&tag)?.is_dir() {
