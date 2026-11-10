@@ -1,10 +1,10 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use rocket::{get, Responder};
 use rocket::fs::{NamedFile};
 use rocket::http::{Header, Status};
 use rocket::State;
 use crate::config::Config;
-use crate::storage::validate_tag;
+use crate::storage::{validate_tag, StoragePath};
 
 // A served file with its Cache-Control header
 #[derive(Responder)]
@@ -24,11 +24,11 @@ fn cache_control_header(max_age: u64) -> Header<'static> {
 }
 
 #[get("/<tag>/<file_name..>")]
-pub async fn get_asset(tag: String, file_name:PathBuf, config: &State<Config>) -> Result<CachedFile, Status> {
+pub async fn get_asset(tag: String, file_name:PathBuf, storage: StoragePath, config: &State<Config>) -> Result<CachedFile, Status> {
 
     validate_tag(&tag)?;
 
-    let base_path = Path::new(&config.storage_path).canonicalize().map_err(|_| Status::InternalServerError)?;
+    let base_path = storage.base();
     let full_path = base_path.join(&tag).join(&file_name);
 
     // Resolve to absolute path (follows symlinks)
@@ -38,7 +38,7 @@ pub async fn get_asset(tag: String, file_name:PathBuf, config: &State<Config>) -
     };
 
     // Security: Ensure resolved path is within storage directory
-    if !full_path.starts_with(&base_path) {
+    if !full_path.starts_with(base_path) {
         log::warn!("Path traversal attempt blocked: {}/{}", tag, file_name.display());
         return Err(Status::BadRequest);  // Path traversal attempt (e.g., symlink escape)
     }

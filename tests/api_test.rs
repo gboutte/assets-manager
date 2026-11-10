@@ -24,6 +24,8 @@ fn health_check() {
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
         cache_max_age: 31536000,
+        storage_per_host: false,
+        allowed_hosts: vec![],
     };
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
@@ -44,6 +46,8 @@ fn health_check_degraded() {
         storage_path: "./test-uploads".to_string(),
         storage_type: "filesystem".to_string(),
         cache_max_age: 31536000,
+        storage_per_host: false,
+        allowed_hosts: vec![],
     };
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
@@ -71,6 +75,8 @@ fn tags_list() {
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
         cache_max_age: 31536000,
+        storage_per_host: false,
+        allowed_hosts: vec![],
     };
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
@@ -110,6 +116,8 @@ fn delete_tag() {
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
         cache_max_age: 31536000,
+        storage_per_host: false,
+        allowed_hosts: vec![],
     };
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
@@ -139,6 +147,8 @@ fn delete_tag_not_found() {
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
         cache_max_age: 31536000,
+        storage_per_host: false,
+        allowed_hosts: vec![],
     };
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
@@ -156,6 +166,8 @@ fn multiple_api_tokens() {
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
         cache_max_age: 31536000,
+        storage_per_host: false,
+        allowed_hosts: vec![],
     };
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
@@ -185,6 +197,8 @@ fn file_get() {
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
         cache_max_age: 31536000,
+        storage_per_host: false,
+        allowed_hosts: vec![],
     };
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
@@ -221,6 +235,8 @@ fn file_get_cache_disabled() {
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
         cache_max_age: 0,
+        storage_per_host: false,
+        allowed_hosts: vec![],
     };
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
@@ -249,6 +265,8 @@ fn file_get_path_traversal() {
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
         cache_max_age: 31536000,
+        storage_per_host: false,
+        allowed_hosts: vec![],
     };
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
@@ -289,6 +307,8 @@ fn test_upload_file() {
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
         cache_max_age: 31536000,
+        storage_per_host: false,
+        allowed_hosts: vec![],
     };
 
     let client = Client::tracked(create_rocket(config)).unwrap();
@@ -330,6 +350,8 @@ fn test_upload_file_no_auth() {
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
         cache_max_age: 31536000,
+        storage_per_host: false,
+        allowed_hosts: vec![],
     };
 
     let client = Client::tracked(create_rocket(config)).unwrap();
@@ -363,6 +385,8 @@ fn test_upload_file_persist_error() {
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
         cache_max_age: 31536000,
+        storage_per_host: false,
+        allowed_hosts: vec![],
     };
 
     let client = Client::tracked(create_rocket(config)).unwrap();
@@ -398,6 +422,8 @@ fn test_upload_zip() {
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
         cache_max_age: 31536000,
+        storage_per_host: false,
+        allowed_hosts: vec![],
     };
 
     let client = Client::tracked(create_rocket(config)).unwrap();
@@ -450,6 +476,8 @@ fn test_upload_zip_slip() {
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
         cache_max_age: 31536000,
+        storage_per_host: false,
+        allowed_hosts: vec![],
     };
 
     let client = Client::tracked(create_rocket(config)).unwrap();
@@ -494,6 +522,8 @@ fn invalid_tag() {
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
         cache_max_age: 31536000,
+        storage_per_host: false,
+        allowed_hosts: vec![],
     };
 
     let client = Client::tracked(create_rocket(config)).unwrap();
@@ -531,6 +561,114 @@ fn invalid_tag() {
     //Clean up
     cleanup_upload_dirs();
 
+}
+
+fn per_host_config() -> Config {
+    Config {
+        api_tokens: vec!["test-token".to_string()],
+        storage_path: "./upload".to_string(),
+        storage_type: "filesystem".to_string(),
+        cache_max_age: 31536000,
+        storage_per_host: true,
+        allowed_hosts: vec!["assets.domain1.com".to_string(), "assets.domain2.com".to_string()],
+    }
+}
+
+fn upload_on_host(client: &Client, host: &str, path: &str, content: &str) -> Status {
+    let (content_type, body) = multipart_body("test-file.txt", content);
+    client.post(format!("/upload/{}", path))
+        .header(content_type)
+        .header(Header::new("Authorization","Bearer test-token"))
+        .header(Header::new("Host", host.to_string()))
+        .body(body)
+        .dispatch()
+        .status()
+}
+
+#[test]
+#[serial]
+fn per_host_isolation() {
+
+    cleanup_upload_dirs();
+    let client = Client::tracked(create_rocket(per_host_config())).unwrap();
+
+    // Same tag and file name on both domains
+    assert_eq!(upload_on_host(&client, "assets.domain1.com", "v1.0.0/test-file.txt", "domain1"), Status::Ok);
+    assert_eq!(upload_on_host(&client, "assets.domain2.com", "v1.0.0/test-file.txt", "domain2"), Status::Ok);
+
+    assert_eq!(std::fs::read("./upload/assets.domain1.com/v1.0.0/test-file.txt").unwrap(), b"domain1");
+    assert_eq!(std::fs::read("./upload/assets.domain2.com/v1.0.0/test-file.txt").unwrap(), b"domain2");
+
+    // Each domain serves its own file
+    for (host, content) in [("assets.domain1.com", "domain1"), ("assets.domain2.com", "domain2")] {
+        let response = client.get("/v1.0.0/test-file.txt").header(Header::new("Host", host)).dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        assert_eq!(response.into_string(), Some(content.to_string()));
+    }
+
+    // A tag only uploaded on domain1 doesn't exist on domain2
+    assert_eq!(upload_on_host(&client, "assets.domain1.com", "only-domain1/test-file.txt", "domain1"), Status::Ok);
+    let response = client.get("/only-domain1/test-file.txt").header(Header::new("Host", "assets.domain2.com")).dispatch();
+    assert_eq!(response.status(), Status::NotFound);
+
+    let response = client.get("/tags").header(Header::new("Host", "assets.domain2.com")).dispatch();
+    assert_eq!(response.into_json::<TagsList>().unwrap().tags, vec!["v1.0.0"]);
+
+    // Deleting a tag on domain1 keeps the one of domain2
+    let response = client.delete("/tags/v1.0.0")
+        .header(Header::new("Authorization","Bearer test-token"))
+        .header(Header::new("Host", "assets.domain1.com"))
+        .dispatch();
+    assert_eq!(response.status(), Status::Ok);
+    assert!(!Path::new("./upload/assets.domain1.com/v1.0.0").exists());
+    assert!(Path::new("./upload/assets.domain2.com/v1.0.0/test-file.txt").exists());
+
+    cleanup_upload_dirs();
+}
+
+#[test]
+#[serial]
+fn per_host_unknown_host() {
+
+    cleanup_upload_dirs();
+    let client = Client::tracked(create_rocket(per_host_config())).unwrap();
+
+    // Not in ALLOWED_HOSTS, or trying to escape the storage directory
+    for host in ["assets.domain3.com", "..", "assets.domain1.com/.."] {
+        assert_eq!(upload_on_host(&client, host, "v1.0.0/test-file.txt", "evil"), Status::NotFound, "host {}", host);
+
+        let response = client.get("/tags").header(Header::new("Host", host)).dispatch();
+        assert_eq!(response.status(), Status::NotFound, "host {}", host);
+    }
+
+    // No Host header at all
+    let response = client.get("/tags").dispatch();
+    assert_eq!(response.status(), Status::NotFound);
+
+    // Nothing was written in the storage
+    assert_eq!(std::fs::read_dir("./upload").unwrap().filter(|e| e.as_ref().unwrap().path().is_dir()).count(), 0);
+
+    // Health stays available on any host
+    let response = client.get("/health").header(Header::new("Host", "assets.domain3.com")).dispatch();
+    assert_eq!(response.status(), Status::Ok);
+
+    cleanup_upload_dirs();
+}
+
+#[test]
+#[serial]
+fn per_host_port_and_case() {
+
+    cleanup_upload_dirs();
+    let client = Client::tracked(create_rocket(per_host_config())).unwrap();
+
+    assert_eq!(upload_on_host(&client, "Assets.Domain1.com:8000", "v1.0.0/test-file.txt", "domain1"), Status::Ok);
+    assert!(Path::new("./upload/assets.domain1.com/v1.0.0/test-file.txt").exists());
+
+    let response = client.get("/v1.0.0/test-file.txt").header(Header::new("Host", "assets.domain1.com")).dispatch();
+    assert_eq!(response.status(), Status::Ok);
+
+    cleanup_upload_dirs();
 }
 
 

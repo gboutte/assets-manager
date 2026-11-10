@@ -3,7 +3,7 @@ mod tests {
     use std::path::Path;
     use rocket::http::Status;
     use serial_test::serial;
-    use assets_manager::storage::{validate_tag, StoragePath};
+    use assets_manager::storage::{normalize_host, validate_tag, StoragePath};
 
     #[test]
     #[serial]
@@ -68,5 +68,13 @@ mod tests {
         for tag in ["", ".", "..", ".hidden", "a/b", "a\\b", "with space", "v1@0", "é", &too_long] {
             assert_eq!(validate_tag(tag), Err(Status::BadRequest), "{} should be invalid", tag);
         }
+    }
+
+    #[test]
+    fn test_normalize_host() {
+        assert_eq!(normalize_host("assets.domain1.com"), "assets.domain1.com");
+        assert_eq!(normalize_host("Assets.Domain1.COM"), "assets.domain1.com");
+        assert_eq!(normalize_host("assets.domain1.com:8000"), "assets.domain1.com");
+        assert_eq!(normalize_host("localhost:80"), "localhost");
     }
 }

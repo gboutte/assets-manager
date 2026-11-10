@@ -14,7 +14,11 @@ mod tests {
         for name in names {
             unsafe { env::remove_var(name); }
         }
-        unsafe { env::remove_var("CACHE_MAX_AGE"); }
+        unsafe {
+            env::remove_var("CACHE_MAX_AGE");
+            env::remove_var("STORAGE_PER_HOST");
+            env::remove_var("ALLOWED_HOSTS");
+        }
     }
 
     #[test]
@@ -36,6 +40,7 @@ mod tests {
         assert_eq!(config.storage_type, "filesystem");
         assert_eq!(config.storage_path, "./test-uploads");
         assert_eq!(config.cache_max_age, 31536000);
+        assert!(!config.storage_per_host);
     }
 
     #[test]
@@ -195,6 +200,76 @@ mod tests {
         let config = config::Config::from_env();
         assert!(config.is_err());
         assert!(config.unwrap_err().contains("Invalid CACHE_MAX_AGE"));
+
+        clear_api_tokens();
+    }
+
+    fn set_base_env() {
+        clear_api_tokens();
+        unsafe {
+            env::set_var("API_TOKEN", "test-token");
+            env::set_var("STORAGE_PATH", "./test-uploads");
+            env::set_var("STORAGE_TYPE", "filesystem");
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_storage_per_host() {
+
+        set_base_env();
+        unsafe {
+            env::set_var("STORAGE_PER_HOST", "true");
+            env::set_var("ALLOWED_HOSTS", " Assets.Domain1.com , assets.domain2.com,");
+        }
+
+        let config = config::Config::from_env().expect("valid config");
+        assert!(config.storage_per_host);
+        assert_eq!(config.allowed_hosts, vec!["assets.domain1.com", "assets.domain2.com"]);
+
+        clear_api_tokens();
+    }
+
+    #[test]
+    #[serial]
+    fn test_storage_per_host_without_allowed_hosts() {
+
+        set_base_env();
+        unsafe { env::set_var("STORAGE_PER_HOST", "true"); }
+
+        let config = config::Config::from_env();
+        assert!(config.unwrap_err().contains("ALLOWED_HOSTS is required"));
+
+        clear_api_tokens();
+    }
+
+    #[test]
+    #[serial]
+    fn test_invalid_storage_per_host() {
+
+        set_base_env();
+        unsafe { env::set_var("STORAGE_PER_HOST", "yes please"); }
+
+        let config = config::Config::from_env();
+        assert!(config.unwrap_err().contains("Invalid STORAGE_PER_HOST"));
+
+        clear_api_tokens();
+    }
+
+    #[test]
+    #[serial]
+    fn test_invalid_allowed_host() {
+
+        for host in ["..", "domain1.com/..", ".hidden.com", "domain 1.com"] {
+            set_base_env();
+            unsafe {
+                env::set_var("STORAGE_PER_HOST", "true");
+                env::set_var("ALLOWED_HOSTS", host);
+            }
+
+            let config = config::Config::from_env();
+            assert!(config.unwrap_err().contains("Invalid host in ALLOWED_HOSTS"), "host {}", host);
+        }
 
         clear_api_tokens();
     }

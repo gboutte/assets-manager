@@ -3,12 +3,10 @@ use rocket::{post, uri, FromForm};
 use rocket::form::Form;
 use rocket::fs::TempFile;
 use rocket::http::{ContentType, Status};
-use rocket::State;
 use zip::ZipArchive;
 use zip::result::ZipError;
 use crate::assets;
 use crate::auth_guard::IsAuth;
-use crate::config::Config;
 use crate::host::RequestInfo;
 use crate::storage::{validate_tag, StoragePath};
 
@@ -23,7 +21,7 @@ pub async fn post_asset(
     tag: String,
     file_name_buf:PathBuf,
     mut form: Form<Upload<'_>> ,
-    config: &State<Config>,
+    storage_path: StoragePath,
     request_info: RequestInfo,
 )  -> Result<String, Status> {
 
@@ -32,8 +30,6 @@ pub async fn post_asset(
     let file_name = file_name_buf.clone().into_os_string().into_string().map_err(|_| Status::InternalServerError)?;
     let mimetype = form.file.content_type().cloned();
     let filesize = form.file.len();
-
-    let storage_path = StoragePath::new(&config.storage_path).map_err(|_| Status::InternalServerError)?;
 
     let file_path = Path::new(&tag).join(&file_name);
     let file_path_str =file_path.to_str().ok_or_else(|| Status::BadRequest)?;
@@ -70,11 +66,9 @@ pub async fn post_asset_zip(
     _auth: IsAuth,
     tag: String,
     form: Form<Upload<'_>> ,
-    config: &State<Config>,
+    storage_path: StoragePath,
 )  -> Result< String,Status> {
     validate_tag(&tag)?;
-
-    let storage_path = StoragePath::new(&config.storage_path).map_err(|_| Status::InternalServerError)?;
     let full_path = storage_path.resolve(&tag).map_err(|_| Status::BadRequest)?;
 
 

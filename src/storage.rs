@@ -1,6 +1,8 @@
 // src/storage.rs
 use std::path::{Component, Path, PathBuf};
 use rocket::http::Status;
+use rocket::request::{FromRequest, Outcome};
+use crate::config::Config;
 
 pub struct StoragePath {
     base: PathBuf,
@@ -50,6 +52,56 @@ impl StoragePath {
         }
         normalized
     }
+}
+
+// Request guard giving the storage directory of the request:
+// <storage_path> by default, <storage_path>/<host> when STORAGE_PER_HOST is enabled.
+// A host that is not in ALLOWED_HOSTS gets a 404, as if the site didn't exist
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for StoragePath {
+    type Error = ();
+
+    async fn from_request(request: &'r rocket::Request<'_>) -> Outcome<Self, Self::Error> {
+        let config = match request.guard::<&rocket::State<Config>>().await {
+            Outcome::Success(c) => c,
+            _ => return Outcome::Error((Status::InternalServerError, ())),
+        };
+
+        if !config.storage_per_host {
+            return match StoragePath::new(&config.storage_path) {
+                Ok(storage) => Outcome::Success(storage),
+                Err(status) => Outcome::Error((status, ())),
+            };
+        }
+
+        let host = request.headers().get_one("Host").map(normalize_host).unwrap_or_default();
+        // The host is compared to the configured list, so a forged Host header can't
+        // be used to reach another directory
+        if !config.allowed_hosts.contains(&host) {
+            log::warn!("Host not allowed: {:?}", host);
+            return Outcome::Error((Status::NotFound, ()));
+        }
+
+        let host_path = Path::new(&config.storage_path).join(&host);
+        if let Err(e) = std::fs::create_dir_all(&host_path) {
+            log::error!("Failed to create storage directory for host {}: {}", host, e);
+            return Outcome::Error((Status::InternalServerError, ()));
+        }
+
+        match host_path.to_str().map(StoragePath::new) {
+            Some(Ok(storage)) => Outcome::Success(storage),
+            _ => Outcome::Error((Status::InternalServerError, ())),
+        }
+    }
+}
+
+// "Assets.Domain1.com:8000" -> "assets.domain1.com"
+pub fn normalize_host(host: &str) -> String {
+    let without_port = match host.rsplit_once(':') {
+        Some((name, port)) if port.chars().all(|c| c.is_ascii_digit()) => name,
+        _ => host,
+    };
+    without_port.trim().to_lowercase()
 }
 
 const TAG_MAX_LENGTH: usize = 64;

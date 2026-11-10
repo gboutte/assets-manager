@@ -12,6 +12,7 @@ A lightweight static asset server written in Rust for learning purposes. Upload 
 - **ZIP upload** – Upload multiple files at once via ZIP archive
 - **API token authentication** – Secure upload endpoints
 - **Filesystem storage** – Store assets locally
+- **Per-domain storage** – Optional (`STORAGE_PER_HOST`): each domain of `ALLOWED_HOSTS` has its own tags, e.g. `v1.0.0` on `assets.domain1.com` and `v1.0.0` on `assets.domain2.com` are different
 - **S3-compatible bucket storage** – Store assets in cloud storage
 - **Health check endpoint** – Monitor service status
 - **List tags** – View all available versions
@@ -42,6 +43,11 @@ STORAGE_PATH=./uploads
 # Cache: Cache-Control max-age in seconds for served assets (default: 1 year, 0 = no-cache)
 # Assets are sent as immutable: upload new files under a new tag rather than overwriting a tag
 # CACHE_MAX_AGE=31536000
+
+# Per-domain storage: assets are stored in <STORAGE_PATH>/<host>/<tag>/ and only served on that host
+# Requests for a host that is not in ALLOWED_HOSTS get a 404 (except /health)
+# STORAGE_PER_HOST=true
+# ALLOWED_HOSTS=assets.domain1.com,assets.domain2.com
 
 # Future: S3 storage
 # STORAGE_TYPE=s3
@@ -159,6 +165,8 @@ services:
       API_TOKEN: your-secret-token-here
       # API_TOKEN_CI: another-token
       # CACHE_MAX_AGE: 31536000
+      # STORAGE_PER_HOST: "true"
+      # ALLOWED_HOSTS: assets.domain1.com,assets.domain2.com
     volumes:
       - assets-data:/data
     restart: unless-stopped
@@ -175,6 +183,12 @@ docker push gboutte/assets-manager:latest
 ```
 
 The image is built for the architecture of the machine running `docker build`. For ARM servers too, use `docker buildx build --platform linux/amd64,linux/arm64 -t gboutte/assets-manager:latest --push .`
+
+### Per-domain storage behind a reverse proxy
+
+The domain is read from the `Host` header, so the proxy must forward it (nginx: `proxy_set_header Host $host;`). `X-Forwarded-Host` is not used, as any client can set it.
+
+When enabling `STORAGE_PER_HOST` on an existing storage, move the existing tags into `<STORAGE_PATH>/<host>/` first, otherwise they are no longer served.
 
 ## Development
 

@@ -1,12 +1,10 @@
 use std::io::ErrorKind;
-use std::path::Path;
-use rocket::{delete, get, State};
+use rocket::{delete, get};
 use rocket::http::Status;
 use rocket::serde::json::Json;
 use rocket::serde::Serialize;
 use crate::auth_guard::IsAuth;
-use crate::config::Config;
-use crate::storage::validate_tag;
+use crate::storage::{validate_tag, StoragePath};
 
 // Un struct pour la réponse
 #[derive(Serialize)]
@@ -16,15 +14,13 @@ pub struct TagsResponse {
 
 // La route
 #[get("/")]
-pub fn tags_list(config: &State<Config>) -> Json<TagsResponse> {
-    let storage_ok = Path::new(&config.storage_path).exists();
-    if !storage_ok {
-        return Json(TagsResponse { tags: Vec::new() });
-    }
-
+pub fn tags_list(storage: StoragePath) -> Result<Json<TagsResponse>, Status> {
     // We get only the directory from storage path
-    let tags = std::fs::read_dir(&config.storage_path)
-        .expect("Failed to read storage directory")
+    let tags = std::fs::read_dir(storage.base())
+        .map_err(|e| {
+            log::error!("Failed to read storage directory: {}", e);
+            Status::InternalServerError
+        })?
         .filter_map(|entry| {
             let entry = entry.ok()?;
             if entry.file_type().ok()?.is_dir() {
@@ -35,25 +31,19 @@ pub fn tags_list(config: &State<Config>) -> Json<TagsResponse> {
         })
          .collect();
 
-    Json(TagsResponse { tags })
+    Ok(Json(TagsResponse { tags }))
 }
 
 #[delete("/<tag>")]
 pub async fn delete_tag(
     _auth: IsAuth,
     tag: String,
-    config: &State<Config>,
+    storage: StoragePath,
 ) -> Result<(), Status>{
 
     validate_tag(&tag)?;
 
-    let base_path = Path::new(&config.storage_path).canonicalize().map_err(|_| Status::InternalServerError)?;
-    let full_path = base_path.join(&tag);
-
-
-    if !full_path.starts_with(&base_path) {
-        return Err(Status::BadRequest);  // Path traversal attempt (e.g., symlink escape)
-    }
+    let full_path = storage.resolve(&tag)?;
 
 
     std::fs::remove_dir_all(full_path).map_err(|e| match e.kind() {

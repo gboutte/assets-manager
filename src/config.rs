@@ -11,6 +11,10 @@ pub struct Config {
     pub storage_type: String,
     // Cache-Control max-age in seconds for served assets, 0 disables caching
     pub cache_max_age: u64,
+    // When true, assets are stored per domain in <storage_path>/<host>/<tag>/...
+    pub storage_per_host: bool,
+    // Domains served when storage_per_host is enabled (lowercase, without port)
+    pub allowed_hosts: Vec<String>,
 }
 
 impl Config {
@@ -49,11 +53,24 @@ impl Config {
             Err(_) => DEFAULT_CACHE_MAX_AGE,
         };
 
+        let storage_per_host = match env::var("STORAGE_PER_HOST") {
+            Ok(value) => Config::parse_bool(&value)
+                .ok_or_else(|| format!("Invalid STORAGE_PER_HOST: {}, expected true or false", value))?,
+            Err(_) => false,
+        };
+
+        let allowed_hosts = Config::allowed_hosts_from_env()?;
+        if storage_per_host && allowed_hosts.is_empty() {
+            return Err("ALLOWED_HOSTS is required when STORAGE_PER_HOST is enabled".to_string());
+        }
+
         Ok(Config {
             api_tokens,
             storage_path: storage_path.unwrap(),
             storage_type: storage_type_value,
             cache_max_age,
+            storage_per_host,
+            allowed_hosts,
         })
 
     }
@@ -66,5 +83,30 @@ impl Config {
             .filter(|(name, value)| name.starts_with(API_TOKEN_PREFIX) && !value.is_empty())
             .map(|(_, value)| value)
             .collect()
+    }
+
+    fn parse_bool(value: &str) -> Option<bool> {
+        match value.to_lowercase().as_str() {
+            "true" | "1" => Some(true),
+            "false" | "0" | "" => Some(false),
+            _ => None,
+        }
+    }
+
+    // ALLOWED_HOSTS=assets.domain1.com,assets.domain2.com
+    // Each host becomes a directory name, so only plain domain names are accepted
+    fn allowed_hosts_from_env() -> Result<Vec<String>, String> {
+        let value = env::var("ALLOWED_HOSTS").unwrap_or_default();
+        let mut hosts = Vec::new();
+
+        for host in value.split(',').map(|h| h.trim().to_lowercase()).filter(|h| !h.is_empty()) {
+            let valid = !host.starts_with('.')
+                && host.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.');
+            if !valid {
+                return Err(format!("Invalid host in ALLOWED_HOSTS: {}", host));
+            }
+            hosts.push(host);
+        }
+        Ok(hosts)
     }
 }
