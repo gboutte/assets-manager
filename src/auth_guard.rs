@@ -29,8 +29,10 @@ impl<'r> FromRequest<'r> for IsAuth {
         let valid = config.api_tokens.iter()
             .any(|expected| bool::from(expected.as_bytes().ct_eq(token.as_bytes())));
 
+        // Forward instead of Error: the request then reaches upload::reject_upload, which reads
+        // the body before answering 401 (see there why)
         if token.is_empty() || !valid {
-            return Outcome::Error((Status::Unauthorized, ()));
+            return Outcome::Forward(Status::Unauthorized);
         }
 
         Outcome::Success(IsAuth)

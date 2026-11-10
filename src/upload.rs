@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use rocket::{post, uri, FromForm};
+use rocket::data::{Data, Limits, ToByteUnit};
 use rocket::form::Form;
 use rocket::fs::TempFile;
 use rocket::http::{ContentType, Status};
@@ -101,5 +102,20 @@ fn zip_error_status(error: ZipError) -> Status {
             log::warn!("Zip archive rejected: {}", e);
             Status::BadRequest
         }
+    }
+}
+
+// Catches the uploads refused by the routes above (bad token, body that is not multipart/form-data).
+// The body is read and dropped before answering: if the server answers without reading it, it
+// closes the connection while the client is still sending, and a reverse proxy like nginx
+// turns that into a 502 instead of the real status
+#[post("/<_..>", data = "<data>", rank = 10)]
+pub async fn reject_upload(auth: Option<IsAuth>, data: Data<'_>, limits: &Limits) -> Status {
+    let limit = limits.get("data-form").unwrap_or(2.mebibytes());
+    let _ = data.open(limit).stream_to(rocket::tokio::io::sink()).await;
+
+    match auth {
+        None => Status::Unauthorized,
+        Some(_) => Status::UnsupportedMediaType,
     }
 }

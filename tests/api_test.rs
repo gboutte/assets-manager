@@ -411,6 +411,45 @@ fn test_upload_file_persist_error() {
 
 #[test]
 #[serial]
+fn test_upload_rejected() {
+
+    cleanup_upload_dirs();
+
+    let config: Config = Config {
+        api_tokens: vec!["test-token".to_string()],
+        storage_path: "./upload".to_string(),
+        storage_type: "filesystem".to_string(),
+        cache_max_age: 31536000,
+        storage_per_host: false,
+        allowed_hosts: vec![],
+    };
+
+    let client = Client::tracked(create_rocket(config)).unwrap();
+
+    // Bad token with a body bigger than what is read before answering: still a clean 401
+    let (content_type, body) = multipart_body_binary("big.bin", &vec![b'a'; 500_000], "application/octet-stream");
+    let response = client.post("/upload/v1.0.0/big.bin")
+        .header(content_type)
+        .header(Header::new("Authorization","Bearer wrong-token"))
+        .body(body)
+        .dispatch();
+    assert_eq!(response.status(), Status::Unauthorized);
+
+    // Valid token but the body is not multipart/form-data
+    let response = client.post("/upload/v1.0.0/test-file.txt")
+        .header(ContentType::Plain)
+        .header(Header::new("Authorization","Bearer test-token"))
+        .body("Hello world!")
+        .dispatch();
+    assert_eq!(response.status(), Status::UnsupportedMediaType);
+
+    assert!(!Path::new("./upload/v1.0.0").exists());
+
+    cleanup_upload_dirs();
+}
+
+#[test]
+#[serial]
 fn test_upload_zip() {
 
 
