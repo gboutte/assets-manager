@@ -52,8 +52,8 @@ pub async fn post_asset(
     let full_url = format!("{}://{}{}", request_info.protocol, request_info.host, path);
 
 
-    print!(
-        "File {}, type: {}, size: {}",
+    log::info!(
+        "File uploaded: {}, type: {}, size: {}",
         full_url,
         mimetype.unwrap_or(ContentType::Binary),
         filesize);
@@ -89,13 +89,21 @@ pub async fn post_asset_zip(
     zip.extract(&full_path).map_err(zip_error_status)?;
 
 
+    log::info!("Zip extracted: {} files to tag {}", zip.len(), tag);
+
     Ok(format!("Extracted {} files to {}", zip.len(), tag))
 }
 
 // A malformed or malicious archive (e.g. zip slip) is a client error, an i/o failure is a server error
 fn zip_error_status(error: ZipError) -> Status {
     match error {
-        ZipError::Io(_) => Status::InternalServerError,
-        _ => Status::BadRequest,
+        ZipError::Io(e) => {
+            log::error!("Zip extraction failed: {}", e);
+            Status::InternalServerError
+        }
+        e => {
+            log::warn!("Zip archive rejected: {}", e);
+            Status::BadRequest
+        }
     }
 }

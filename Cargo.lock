@@ -43,6 +43,7 @@ version = "0.1.0"
 dependencies = [
  "dotenvy",
  "filesize",
+ "log",
  "rocket",
  "rocket_cors",
  "serde",

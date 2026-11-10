@@ -171,7 +171,7 @@ log = "0.4"
 log::info!("File uploaded: {}, type: {:?}, size: {}", full_url, mimetype, filesize);
 ```
 
-**Status:** ⏳ Pending
+**Status:** ✅ Fixed — `log` crate (printed by Rocket's logger)
 
 ---
 
@@ -183,7 +183,7 @@ println!("Full path: {}", full_path.display());
 println!("Base path: {}", base_path.display());
 ```
 
-**Status:** ⏳ Pending
+**Status:** ✅ Fixed — `log` crate (printed by Rocket's logger)
 
 ---
 
@@ -242,8 +242,8 @@ src/
 | 1 | Replace all `.unwrap()` with proper error handling | 30 min | ✅ Done |
 | 2 | Fix ZIP slip vulnerability | 15 min | ✅ Done |
 | 3 | Fix `remove_dir` → `remove_dir_all` | 5 min | ✅ Done |
-| 4 | Remove debug `println!` | 5 min | ⏳ Pending |
+| 4 | Remove debug `println!` | 5 min | ✅ Done |
 | 5 | Extract `StoragePath` utility | 30 min | ✅ Done |
 | 6 | Add tag validation | 15 min | ✅ Done |
 | 7 | Create custom error type | 45 min | ⏳ Pending |
-| 8 | Add proper logging | 20 min | ⏳ Pending |
+| 8 | Add proper logging | 20 min | ✅ Done |

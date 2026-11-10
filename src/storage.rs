@@ -62,5 +62,9 @@ pub fn validate_tag(tag: &str) -> Result<&str, Status> {
         && !tag.starts_with('.')
         && tag.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.');
 
-    if valid { Ok(tag) } else { Err(Status::BadRequest) }
+    if !valid {
+        log::warn!("Invalid tag rejected: {:?}", tag);
+        return Err(Status::BadRequest);
+    }
+    Ok(tag)
 }

@@ -14,9 +14,6 @@ pub async fn get_asset(tag: String, file_name:PathBuf, config: &State<Config>) -
     let base_path = Path::new(&config.storage_path).canonicalize().map_err(|_| Status::InternalServerError)?;
     let full_path = base_path.join(&tag).join(&file_name);
 
-    println!("Full path: {}", full_path.display());
-    println!("Base path: {}", base_path.display());
-
     // Resolve to absolute path (follows symlinks)
     let full_path = match full_path.canonicalize() {
         Ok(p) => p,
@@ -25,6 +22,7 @@ pub async fn get_asset(tag: String, file_name:PathBuf, config: &State<Config>) -
 
     // Security: Ensure resolved path is within storage directory
     if !full_path.starts_with(&base_path) {
+        log::warn!("Path traversal attempt blocked: {}/{}", tag, file_name.display());
         return Err(Status::BadRequest);  // Path traversal attempt (e.g., symlink escape)
     }
 
