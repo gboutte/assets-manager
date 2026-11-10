@@ -132,6 +132,50 @@ Response:
 }
 ```
 
+## Docker
+
+### Run
+
+```bash
+docker run -d \
+  --name assets-manager \
+  -p 8000:8000 \
+  -e API_TOKEN=your-secret-token-here \
+  -v assets-data:/data \
+  gboutte/assets-manager:latest
+```
+
+Uploaded files are stored in the `/data` volume. The image already sets `HOST=0.0.0.0`, `PORT=8000`, `STORAGE_TYPE=filesystem` and `STORAGE_PATH=/data`; only an `API_TOKEN*` variable is required. The server runs as a non-root user (uid `10001`): when mounting a host directory instead of a named volume, make it writable by that uid.
+
+### docker compose
+
+```yaml
+services:
+  assets-manager:
+    image: gboutte/assets-manager:latest
+    ports:
+      - "8000:8000"
+    environment:
+      API_TOKEN: your-secret-token-here
+      # API_TOKEN_CI: another-token
+      # CACHE_MAX_AGE: 31536000
+    volumes:
+      - assets-data:/data
+    restart: unless-stopped
+
+volumes:
+  assets-data:
+```
+
+### Build and publish
+
+```bash
+docker build -t gboutte/assets-manager:latest .
+docker push gboutte/assets-manager:latest
+```
+
+The image is built for the architecture of the machine running `docker build`. For ARM servers too, use `docker buildx build --platform linux/amd64,linux/arm64 -t gboutte/assets-manager:latest --push .`
+
 ## Development
 
 ### Prerequisites
