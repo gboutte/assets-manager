@@ -3,7 +3,7 @@ mod tests {
     use std::path::Path;
     use rocket::http::Status;
     use serial_test::serial;
-    use assets_manager::storage::StoragePath;
+    use assets_manager::storage::{validate_tag, StoragePath};
 
     #[test]
     #[serial]
@@ -55,5 +55,18 @@ mod tests {
         assert_eq!(normalized_path1.to_str().unwrap(), "/test/home/dir2");
     }
 
+    #[test]
+    fn test_validate_tag_valid() {
+        for tag in ["v1.0.0", "release-2026_11", "a", &"a".repeat(64)] {
+            assert_eq!(validate_tag(tag), Ok(tag), "{} should be valid", tag);
+        }
+    }
 
+    #[test]
+    fn test_validate_tag_invalid() {
+        let too_long = "a".repeat(65);
+        for tag in ["", ".", "..", ".hidden", "a/b", "a\\b", "with space", "v1@0", "é", &too_long] {
+            assert_eq!(validate_tag(tag), Err(Status::BadRequest), "{} should be invalid", tag);
+        }
+    }
 }

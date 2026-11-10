@@ -5,6 +5,7 @@ use rocket::serde::json::Json;
 use rocket::serde::Serialize;
 use crate::auth_guard::IsAuth;
 use crate::config::Config;
+use crate::storage::validate_tag;
 
 // Un struct pour la réponse
 #[derive(Serialize)]
@@ -43,6 +44,7 @@ pub async fn delete_tag(
     config: &State<Config>,
 ) -> Result<(), Status>{
 
+    validate_tag(&tag)?;
 
     let base_path = Path::new(&config.storage_path).canonicalize().map_err(|_| Status::InternalServerError)?;
     let full_path = base_path.join(&tag);

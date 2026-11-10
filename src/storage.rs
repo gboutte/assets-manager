@@ -51,3 +51,16 @@ impl StoragePath {
         normalized
     }
 }
+
+const TAG_MAX_LENGTH: usize = 64;
+
+// A tag is a single directory name: ASCII letters, digits, '-', '_' and '.', not starting with '.'
+// (rejects "", ".", "..", hidden directories and any path separator)
+pub fn validate_tag(tag: &str) -> Result<&str, Status> {
+    let valid = !tag.is_empty()
+        && tag.len() <= TAG_MAX_LENGTH
+        && !tag.starts_with('.')
+        && tag.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.');
+
+    if valid { Ok(tag) } else { Err(Status::BadRequest) }
+}

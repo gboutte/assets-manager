@@ -4,9 +4,12 @@ use rocket::fs::{NamedFile};
 use rocket::http::Status;
 use rocket::State;
 use crate::config::Config;
+use crate::storage::validate_tag;
 
 #[get("/<tag>/<file_name..>")]
 pub async fn get_asset(tag: String, file_name:PathBuf, config: &State<Config>) -> Result<NamedFile, Status> {
+
+    validate_tag(&tag)?;
 
     let base_path = Path::new(&config.storage_path).canonicalize().map_err(|_| Status::InternalServerError)?;
     let full_path = base_path.join(&tag).join(&file_name);

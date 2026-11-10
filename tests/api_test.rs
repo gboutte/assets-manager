@@ -367,6 +367,55 @@ fn test_upload_zip_slip() {
 }
 
 
+#[test]
+#[serial]
+fn invalid_tag() {
+
+    cleanup_upload_dirs();
+
+    let config: Config = Config {
+        api_token: "test-token".to_string(),
+        storage_path: "./upload".to_string(),
+        storage_type: "filesystem".to_string(),
+    };
+
+    let client = Client::tracked(create_rocket(config)).unwrap();
+    let auth_header = Header::new("Authorization","Bearer test-token");
+
+    // Hidden directory created by hand, must not be reachable through the API
+    std::fs::create_dir("./upload/.hidden").unwrap();
+    std::fs::write("./upload/.hidden/test-file.txt", "test").unwrap();
+
+    let response = client.get("/.hidden/test-file.txt").dispatch();
+    assert_eq!(response.status(), Status::BadRequest);
+
+    let (content_type, body) = multipart_body("test-file.txt", "Hello world!");
+    let response = client.post("/upload/v1@0/test-file.txt")
+        .header(content_type)
+        .header(auth_header.clone())
+        .body(body)
+        .dispatch();
+    assert_eq!(response.status(), Status::BadRequest);
+    assert!(!Path::new("./upload/v1@0").exists());
+
+    let (content_type, body) = multipart_body_binary("archive.zip", &create_test_zip(), "application/zip");
+    let response = client.post("/upload/v1@0")
+        .header(content_type)
+        .header(auth_header.clone())
+        .body(body)
+        .dispatch();
+    assert_eq!(response.status(), Status::BadRequest);
+    assert!(!Path::new("./upload/v1@0").exists());
+
+    let response = client.delete("/tags/.hidden").header(auth_header).dispatch();
+    assert_eq!(response.status(), Status::BadRequest);
+    assert!(Path::new("./upload/.hidden").exists());
+
+    //Clean up
+    cleanup_upload_dirs();
+
+}
+
 
 fn create_zip_slip_zip() -> Vec<u8> {
     let mut buffer = Cursor::new(Vec::new());

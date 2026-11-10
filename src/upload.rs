@@ -11,7 +11,7 @@ use crate::assets;
 use crate::auth_guard::IsAuth;
 use crate::config::Config;
 use crate::host::RequestInfo;
-use crate::storage::StoragePath;
+use crate::storage::{validate_tag, StoragePath};
 
 #[derive(FromForm)]
 pub struct Upload<'f> {
@@ -27,6 +27,8 @@ pub async fn post_asset(
     config: &State<Config>,
     request_info: RequestInfo,
 )  -> Result<String, Status> {
+
+    validate_tag(&tag)?;
 
     let file_name = file_name_buf.clone().into_os_string().into_string().map_err(|_| Status::InternalServerError)?;
     let mimetype = form.file.content_type().cloned();
@@ -68,6 +70,8 @@ pub async fn post_asset_zip(
     form: Form<Upload<'_>> ,
     config: &State<Config>,
 )  -> Result< String,Status> {
+    validate_tag(&tag)?;
+
     let storage_path = StoragePath::new(&config.storage_path).map_err(|_| Status::InternalServerError)?;
     let full_path = storage_path.resolve(&tag).map_err(|_| Status::BadRequest)?;
 

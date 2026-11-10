@@ -200,7 +200,7 @@ fn is_valid_tag(tag: &str) -> bool {
 }
 ```
 
-**Status:** ⏳ Pending
+**Status:** ✅ Fixed — `validate_tag` in `src/storage.rs`, used by every route taking a tag
 
 ---
 
@@ -244,6 +244,6 @@ src/
 | 3 | Fix `remove_dir` → `remove_dir_all` | 5 min | ✅ Done |
 | 4 | Remove debug `println!` | 5 min | ⏳ Pending |
 | 5 | Extract `StoragePath` utility | 30 min | ✅ Done |
-| 6 | Add tag validation | 15 min | ⏳ Pending |
+| 6 | Add tag validation | 15 min | ✅ Done |
 | 7 | Create custom error type | 45 min | ⏳ Pending |
 | 8 | Add proper logging | 20 min | ⏳ Pending |
