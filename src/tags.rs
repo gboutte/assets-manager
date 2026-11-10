@@ -4,7 +4,7 @@ use rocket::http::Status;
 use rocket::serde::json::Json;
 use rocket::serde::Serialize;
 use crate::auth_guard::IsAuth;
-use crate::stats::Stats;
+use crate::stats::{Stats, TagStats};
 use crate::storage::{validate_tag, StoragePath};
 
 // Un struct pour la réponse
@@ -33,6 +33,22 @@ pub fn tags_list(storage: StoragePath) -> Result<Json<TagsResponse>, Status> {
          .collect();
 
     Ok(Json(TagsResponse { tags }))
+}
+
+#[get("/<tag>/stats")]
+pub async fn tag_stats(
+    tag: String,
+    storage: StoragePath,
+    stats: &State<Stats>,
+) -> Result<Json<TagStats>, Status> {
+
+    validate_tag(&tag)?;
+
+    if !storage.resolve(&tag)?.is_dir() {
+        return Err(Status::NotFound);
+    }
+
+    Ok(Json(stats.tag_stats(storage.host(), &tag).await))
 }
 
 #[delete("/<tag>")]

@@ -12,7 +12,8 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
+use rocket::serde::Serialize;
 use crate::config::Config;
 
 pub const FLUSH_INTERVAL: Duration = Duration::from_secs(60);
@@ -24,6 +25,16 @@ type TagKey = (String, String);
 struct PendingHits {
     count: i64,
     last_hit_at: i64,
+}
+
+// Dates are Unix timestamps in seconds
+#[derive(Serialize, Debug, PartialEq)]
+pub struct TagStats {
+    pub tag: String,
+    // None only for a tag copied by hand and never served or uploaded since
+    pub uploaded_at: Option<i64>,
+    pub last_hit_at: Option<i64>,
+    pub hits: i64,
 }
 
 struct Inner {
@@ -93,6 +104,48 @@ impl Stats {
         self.run_blocking("remove tag", move |conn| {
             conn.execute("DELETE FROM tags WHERE host = ?1 AND tag = ?2", params![key.0, key.1]).map(|_| ())
         }).await;
+    }
+
+    // Stats of a tag, including the hits not flushed yet so the numbers are always live
+    pub async fn tag_stats(&self, host: &str, tag: &str) -> TagStats {
+        let key = (host.to_string(), tag.to_string());
+        let (pending_count, pending_last_hit) = match self.inner.pending.lock() {
+            Ok(pending) => pending.get(&key).map(|h| (h.count, Some(h.last_hit_at))).unwrap_or((0, None)),
+            Err(_) => (0, None),
+        };
+
+        let stats = self.clone();
+        let (host, tag) = key;
+        let tag_name = tag.clone();
+        let row = rocket::tokio::task::spawn_blocking(move || {
+            stats.with_conn(|conn| {
+                conn.query_row(
+                    "SELECT uploaded_at, last_hit_at, hits FROM tags WHERE host = ?1 AND tag = ?2",
+                    params![host, tag],
+                    |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Option<i64>>(1)?, row.get::<_, i64>(2)?)),
+                ).optional()
+            })
+        }).await;
+
+        let (uploaded_at, last_hit_at, hits) = match row {
+            Ok(Ok(Some((uploaded_at, last_hit_at, hits)))) => (Some(uploaded_at), last_hit_at, hits),
+            Ok(Ok(None)) => (None, None, 0),
+            Ok(Err(e)) => {
+                log::error!("Stats database error (read tag stats): {}", e);
+                (None, None, 0)
+            }
+            Err(e) => {
+                log::error!("Stats task failed (read tag stats): {}", e);
+                (None, None, 0)
+            }
+        };
+
+        TagStats {
+            tag: tag_name,
+            uploaded_at,
+            last_hit_at: last_hit_at.max(pending_last_hit),
+            hits: hits + pending_count,
+        }
     }
 
     pub async fn flush(&self) {

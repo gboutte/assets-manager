@@ -217,3 +217,96 @@ fn invalid_database_path_prevents_startup() {
     assert!(matches!(error.kind(), rocket::error::ErrorKind::FailedFairings(_)));
     assert!(!Path::new("./upload/missing-dir").exists());
 }
+
+#[derive(rocket::serde::Deserialize, Debug)]
+struct TagStatsResponse {
+    tag: String,
+    uploaded_at: Option<i64>,
+    last_hit_at: Option<i64>,
+    hits: i64,
+}
+
+fn get_stats(client: &Client, host: Option<&str>, tag: &str) -> (Status, Option<TagStatsResponse>) {
+    let mut request = client.get(format!("/tags/{}/stats", tag));
+    if let Some(host) = host {
+        request = request.header(Header::new("Host", host.to_string()));
+    }
+    let response = request.dispatch();
+    let status = response.status();
+    (status, response.into_json())
+}
+
+#[test]
+#[serial]
+fn stats_route() {
+    cleanup();
+    let client = Client::tracked(create_rocket(test_config())).unwrap();
+
+    let before = now();
+    assert_eq!(upload(&client, None, "v1.0.0/f.txt"), Status::Ok);
+
+    let (status, stats) = get_stats(&client, None, "v1.0.0");
+    assert_eq!(status, Status::Ok);
+    let stats = stats.unwrap();
+    assert_eq!(stats.tag, "v1.0.0");
+    assert!(stats.uploaded_at.unwrap() >= before);
+    assert_eq!(stats.last_hit_at, None);
+    assert_eq!(stats.hits, 0);
+
+    // Hits not flushed yet are already counted
+    client.get("/v1.0.0/f.txt").dispatch();
+    client.get("/v1.0.0/f.txt").dispatch();
+    let stats = get_stats(&client, None, "v1.0.0").1.unwrap();
+    assert_eq!(stats.hits, 2);
+    assert!(stats.last_hit_at.unwrap() >= before);
+
+    // Same numbers after the flush, and new hits add up
+    flush(&client);
+    client.get("/v1.0.0/f.txt").dispatch();
+    assert_eq!(get_stats(&client, None, "v1.0.0").1.unwrap().hits, 3);
+
+    // Reading stats is not a hit
+    assert_eq!(get_stats(&client, None, "v1.0.0").1.unwrap().hits, 3);
+
+    cleanup();
+}
+
+#[test]
+#[serial]
+fn stats_route_not_found() {
+    cleanup();
+    let client = Client::tracked(create_rocket(test_config())).unwrap();
+
+    assert_eq!(get_stats(&client, None, "unknown").0, Status::NotFound);
+    assert_eq!(get_stats(&client, None, ".hidden").0, Status::BadRequest);
+
+    // Tag copied by hand after startup: exists but has no upload date
+    std::fs::create_dir_all("./upload/copied").unwrap();
+    let (status, stats) = get_stats(&client, None, "copied");
+    assert_eq!(status, Status::Ok);
+    assert_eq!(stats.unwrap().uploaded_at, None);
+
+    cleanup();
+}
+
+#[test]
+#[serial]
+fn stats_route_per_host() {
+    cleanup();
+    let config = Config {
+        storage_per_host: true,
+        allowed_hosts: vec!["assets.domain1.com".to_string(), "assets.domain2.com".to_string()],
+        ..test_config()
+    };
+    let client = Client::tracked(create_rocket(config)).unwrap();
+
+    assert_eq!(upload(&client, Some("assets.domain1.com"), "v1.0.0/f.txt"), Status::Ok);
+    client.get("/v1.0.0/f.txt").header(Header::new("Host", "assets.domain1.com")).dispatch();
+
+    assert_eq!(get_stats(&client, Some("assets.domain1.com"), "v1.0.0").1.unwrap().hits, 1);
+    // The tag only exists on domain1
+    assert_eq!(get_stats(&client, Some("assets.domain2.com"), "v1.0.0").0, Status::NotFound);
+    assert_eq!(get_stats(&client, Some("assets.domain3.com"), "v1.0.0").0, Status::NotFound);
+
+    cleanup();
+}

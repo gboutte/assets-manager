@@ -28,7 +28,7 @@ pub fn create_rocket(config: config::Config) -> rocket::Rocket<rocket::Build> {
         .attach(cors)
         .attach(stats_fairing())
         .mount("/health", rocket::routes![health::health])
-        .mount("/tags", rocket::routes![tags::tags_list,tags::delete_tag])
+        .mount("/tags", rocket::routes![tags::tags_list, tags::tag_stats, tags::delete_tag])
         .mount("/upload", rocket::routes![upload::post_asset, upload::post_asset_zip, upload::reject_upload])
         .mount("/", rocket::routes![assets::get_asset])
         .manage(config)
