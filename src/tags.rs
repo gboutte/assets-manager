@@ -1,9 +1,10 @@
 use std::io::ErrorKind;
-use rocket::{delete, get};
+use rocket::{delete, get, State};
 use rocket::http::Status;
 use rocket::serde::json::Json;
 use rocket::serde::Serialize;
 use crate::auth_guard::IsAuth;
+use crate::stats::Stats;
 use crate::storage::{validate_tag, StoragePath};
 
 // Un struct pour la réponse
@@ -39,6 +40,7 @@ pub async fn delete_tag(
     _auth: IsAuth,
     tag: String,
     storage: StoragePath,
+    stats: &State<Stats>,
 ) -> Result<(), Status>{
 
     validate_tag(&tag)?;
@@ -54,6 +56,7 @@ pub async fn delete_tag(
         }
     })?;
 
+    stats.remove_tag(storage.host(), &tag).await;
     log::info!("Tag deleted: {}", tag);
 
     Ok(())

@@ -4,6 +4,7 @@ use rocket::fs::{NamedFile};
 use rocket::http::{Header, Status};
 use rocket::State;
 use crate::config::Config;
+use crate::stats::Stats;
 use crate::storage::{validate_tag, StoragePath};
 
 // A served file with its Cache-Control header
@@ -24,7 +25,7 @@ fn cache_control_header(max_age: u64) -> Header<'static> {
 }
 
 #[get("/<tag>/<file_name..>")]
-pub async fn get_asset(tag: String, file_name:PathBuf, storage: StoragePath, config: &State<Config>) -> Result<CachedFile, Status> {
+pub async fn get_asset(tag: String, file_name:PathBuf, storage: StoragePath, config: &State<Config>, stats: &State<Stats>) -> Result<CachedFile, Status> {
 
     validate_tag(&tag)?;
 
@@ -44,6 +45,7 @@ pub async fn get_asset(tag: String, file_name:PathBuf, storage: StoragePath, con
     }
 
     let file = NamedFile::open(full_path).await.map_err(|_| Status::NotFound)?;
+    stats.record_hit(storage.host(), &tag);
 
     Ok(CachedFile {
         file,

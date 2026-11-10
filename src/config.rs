@@ -15,6 +15,8 @@ pub struct Config {
     pub storage_per_host: bool,
     // Domains served when storage_per_host is enabled (lowercase, without port)
     pub allowed_hosts: Vec<String>,
+    // SQLite database keeping upload dates and hits of each tag
+    pub db_path: String,
 }
 
 impl Config {
@@ -64,13 +66,18 @@ impl Config {
             return Err("ALLOWED_HOSTS is required when STORAGE_PER_HOST is enabled".to_string());
         }
 
+        let storage_path = storage_path.unwrap();
+        // Starts with a dot so it is never listed or served as a tag
+        let db_path = env::var("DB_PATH").unwrap_or_else(|_| format!("{}/.assets-manager.db", storage_path));
+
         Ok(Config {
             api_tokens,
-            storage_path: storage_path.unwrap(),
+            storage_path,
             storage_type: storage_type_value,
             cache_max_age,
             storage_per_host,
             allowed_hosts,
+            db_path,
         })
 
     }

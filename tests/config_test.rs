@@ -18,6 +18,7 @@ mod tests {
             env::remove_var("CACHE_MAX_AGE");
             env::remove_var("STORAGE_PER_HOST");
             env::remove_var("ALLOWED_HOSTS");
+            env::remove_var("DB_PATH");
         }
     }
 
@@ -41,6 +42,7 @@ mod tests {
         assert_eq!(config.storage_path, "./test-uploads");
         assert_eq!(config.cache_max_age, 31536000);
         assert!(!config.storage_per_host);
+        assert_eq!(config.db_path, "./test-uploads/.assets-manager.db");
     }
 
     #[test]
@@ -270,6 +272,19 @@ mod tests {
             let config = config::Config::from_env();
             assert!(config.unwrap_err().contains("Invalid host in ALLOWED_HOSTS"), "host {}", host);
         }
+
+        clear_api_tokens();
+    }
+
+    #[test]
+    #[serial]
+    fn test_db_path() {
+
+        set_base_env();
+        unsafe { env::set_var("DB_PATH", "/var/lib/assets/stats.db"); }
+
+        let config = config::Config::from_env().expect("valid config");
+        assert_eq!(config.db_path, "/var/lib/assets/stats.db");
 
         clear_api_tokens();
     }

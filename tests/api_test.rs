@@ -10,6 +10,22 @@ use std::io::{Write, Cursor};
 use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
 
+const TEST_DB: &str = "./upload/.test.db";
+
+// Default config of the tests: tests only override what they need with
+// Config { field: value, ..test_config() } (struct update syntax)
+fn test_config() -> Config {
+    Config {
+        api_tokens: vec!["test-token".to_string()],
+        storage_path: "./upload".to_string(),
+        storage_type: "filesystem".to_string(),
+        cache_max_age: 31536000,
+        storage_per_host: false,
+        allowed_hosts: vec![],
+        db_path: TEST_DB.to_string(),
+    }
+}
+
 #[derive(Deserialize)]
 struct HealthResult {
     status: String,
@@ -19,14 +35,7 @@ struct HealthResult {
 #[serial]
 fn health_check() {
 
-    let config: Config = Config {
-        api_tokens: vec!["test-token".to_string()],
-        storage_path: "./upload".to_string(),
-        storage_type: "filesystem".to_string(),
-        cache_max_age: 31536000,
-        storage_per_host: false,
-        allowed_hosts: vec![],
-    };
+    let config = test_config();
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
     let response = client.get("/health").dispatch();
@@ -41,14 +50,7 @@ fn health_check() {
 #[serial]
 fn health_check_degraded() {
 
-    let config: Config = Config {
-        api_tokens: vec!["test-token".to_string()],
-        storage_path: "./test-uploads".to_string(),
-        storage_type: "filesystem".to_string(),
-        cache_max_age: 31536000,
-        storage_per_host: false,
-        allowed_hosts: vec![],
-    };
+    let config = Config { storage_path: "./test-uploads".to_string(), ..test_config() };
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
     let response = client.get("/health").dispatch();
@@ -70,14 +72,7 @@ struct TagsList {
 fn tags_list() {
 
     cleanup_upload_dirs();
-    let config: Config = Config {
-        api_tokens: vec!["test-token".to_string()],
-        storage_path: "./upload".to_string(),
-        storage_type: "filesystem".to_string(),
-        cache_max_age: 31536000,
-        storage_per_host: false,
-        allowed_hosts: vec![],
-    };
+    let config = test_config();
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
     let response = client.get("/tags").dispatch();
@@ -111,14 +106,7 @@ fn tags_list() {
 fn delete_tag() {
 
     cleanup_upload_dirs();
-    let config: Config = Config {
-        api_tokens: vec!["test-token".to_string()],
-        storage_path: "./upload".to_string(),
-        storage_type: "filesystem".to_string(),
-        cache_max_age: 31536000,
-        storage_per_host: false,
-        allowed_hosts: vec![],
-    };
+    let config = test_config();
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
 
@@ -142,14 +130,7 @@ fn delete_tag() {
 fn delete_tag_not_found() {
 
     cleanup_upload_dirs();
-    let config: Config = Config {
-        api_tokens: vec!["test-token".to_string()],
-        storage_path: "./upload".to_string(),
-        storage_type: "filesystem".to_string(),
-        cache_max_age: 31536000,
-        storage_per_host: false,
-        allowed_hosts: vec![],
-    };
+    let config = test_config();
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
 
@@ -161,14 +142,7 @@ fn delete_tag_not_found() {
 fn multiple_api_tokens() {
 
     cleanup_upload_dirs();
-    let config: Config = Config {
-        api_tokens: vec!["token-ci".to_string(), "token-deploy".to_string()],
-        storage_path: "./upload".to_string(),
-        storage_type: "filesystem".to_string(),
-        cache_max_age: 31536000,
-        storage_per_host: false,
-        allowed_hosts: vec![],
-    };
+    let config = Config { api_tokens: vec!["token-ci".to_string(), "token-deploy".to_string()], ..test_config() };
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
 
@@ -192,14 +166,7 @@ fn file_get() {
     cleanup_upload_dirs();
 
 
-    let config: Config = Config {
-        api_tokens: vec!["test-token".to_string()],
-        storage_path: "./upload".to_string(),
-        storage_type: "filesystem".to_string(),
-        cache_max_age: 31536000,
-        storage_per_host: false,
-        allowed_hosts: vec![],
-    };
+    let config = test_config();
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
     let response = client.get("/v1.0.0/test-file.txt").dispatch();
@@ -230,14 +197,7 @@ fn file_get_cache_disabled() {
 
     cleanup_upload_dirs();
 
-    let config: Config = Config {
-        api_tokens: vec!["test-token".to_string()],
-        storage_path: "./upload".to_string(),
-        storage_type: "filesystem".to_string(),
-        cache_max_age: 0,
-        storage_per_host: false,
-        allowed_hosts: vec![],
-    };
+    let config = Config { cache_max_age: 0, ..test_config() };
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
 
@@ -260,14 +220,7 @@ fn file_get_path_traversal() {
     cleanup_upload_dirs();
 
 
-    let config: Config = Config {
-        api_tokens: vec!["test-token".to_string()],
-        storage_path: "./upload".to_string(),
-        storage_type: "filesystem".to_string(),
-        cache_max_age: 31536000,
-        storage_per_host: false,
-        allowed_hosts: vec![],
-    };
+    let config = test_config();
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
     let response = client.get("/test-tag/../../../../test-file.txt").dispatch();
@@ -285,6 +238,7 @@ fn cleanup_upload_dirs() {
     if !upload_path.exists() {
         return;
     }
+    let _ = std::fs::remove_file(TEST_DB);
 
     for entry in std::fs::read_dir(upload_path).unwrap() {
         let entry = entry.unwrap();
@@ -302,14 +256,7 @@ fn test_upload_file() {
     //Clean up
     cleanup_upload_dirs();
 
-    let config: Config = Config {
-        api_tokens: vec!["test-token".to_string()],
-        storage_path: "./upload".to_string(),
-        storage_type: "filesystem".to_string(),
-        cache_max_age: 31536000,
-        storage_per_host: false,
-        allowed_hosts: vec![],
-    };
+    let config = test_config();
 
     let client = Client::tracked(create_rocket(config)).unwrap();
 
@@ -345,14 +292,7 @@ fn test_upload_file_no_auth() {
     //Clean up
     cleanup_upload_dirs();
 
-    let config: Config = Config {
-        api_tokens: vec!["test-token".to_string()],
-        storage_path: "./upload".to_string(),
-        storage_type: "filesystem".to_string(),
-        cache_max_age: 31536000,
-        storage_per_host: false,
-        allowed_hosts: vec![],
-    };
+    let config = test_config();
 
     let client = Client::tracked(create_rocket(config)).unwrap();
 
@@ -380,14 +320,7 @@ fn test_upload_file_persist_error() {
     //Clean up
     cleanup_upload_dirs();
 
-    let config: Config = Config {
-        api_tokens: vec!["test-token".to_string()],
-        storage_path: "./upload".to_string(),
-        storage_type: "filesystem".to_string(),
-        cache_max_age: 31536000,
-        storage_per_host: false,
-        allowed_hosts: vec![],
-    };
+    let config = test_config();
 
     let client = Client::tracked(create_rocket(config)).unwrap();
 
@@ -415,14 +348,7 @@ fn test_upload_rejected() {
 
     cleanup_upload_dirs();
 
-    let config: Config = Config {
-        api_tokens: vec!["test-token".to_string()],
-        storage_path: "./upload".to_string(),
-        storage_type: "filesystem".to_string(),
-        cache_max_age: 31536000,
-        storage_per_host: false,
-        allowed_hosts: vec![],
-    };
+    let config = test_config();
 
     let client = Client::tracked(create_rocket(config)).unwrap();
 
@@ -456,14 +382,7 @@ fn test_upload_zip() {
     //Clean up
     cleanup_upload_dirs();
 
-    let config: Config = Config {
-        api_tokens: vec!["test-token".to_string()],
-        storage_path: "./upload".to_string(),
-        storage_type: "filesystem".to_string(),
-        cache_max_age: 31536000,
-        storage_per_host: false,
-        allowed_hosts: vec![],
-    };
+    let config = test_config();
 
     let client = Client::tracked(create_rocket(config)).unwrap();
 
@@ -510,14 +429,7 @@ fn test_upload_zip_slip() {
         let _ = std::fs::remove_file(file);
     }
 
-    let config: Config = Config {
-        api_tokens: vec!["test-token".to_string()],
-        storage_path: "./upload".to_string(),
-        storage_type: "filesystem".to_string(),
-        cache_max_age: 31536000,
-        storage_per_host: false,
-        allowed_hosts: vec![],
-    };
+    let config = test_config();
 
     let client = Client::tracked(create_rocket(config)).unwrap();
 
@@ -556,14 +468,7 @@ fn invalid_tag() {
 
     cleanup_upload_dirs();
 
-    let config: Config = Config {
-        api_tokens: vec!["test-token".to_string()],
-        storage_path: "./upload".to_string(),
-        storage_type: "filesystem".to_string(),
-        cache_max_age: 31536000,
-        storage_per_host: false,
-        allowed_hosts: vec![],
-    };
+    let config = test_config();
 
     let client = Client::tracked(create_rocket(config)).unwrap();
     let auth_header = Header::new("Authorization","Bearer test-token");
@@ -603,14 +508,7 @@ fn invalid_tag() {
 }
 
 fn per_host_config() -> Config {
-    Config {
-        api_tokens: vec!["test-token".to_string()],
-        storage_path: "./upload".to_string(),
-        storage_type: "filesystem".to_string(),
-        cache_max_age: 31536000,
-        storage_per_host: true,
-        allowed_hosts: vec!["assets.domain1.com".to_string(), "assets.domain2.com".to_string()],
-    }
+    Config { storage_per_host: true, allowed_hosts: vec!["assets.domain1.com".to_string(), "assets.domain2.com".to_string()], ..test_config() }
 }
 
 fn upload_on_host(client: &Client, host: &str, path: &str, content: &str) -> Status {

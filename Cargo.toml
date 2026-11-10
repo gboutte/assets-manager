@@ -11,6 +11,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 zip = "2.1"
 log = "0.4"
 subtle = "2"
+rusqlite = { version = "0.41.1", features = ["bundled"] }
 
 
 [dev-dependencies]

@@ -17,7 +17,7 @@ A lightweight static asset server written in Rust for learning purposes. Upload 
 - **Health check endpoint** – Monitor service status
 - **List tags** – View all available versions
 - **Delete tags** – Remove a version and all its files
-- **Usage statistics** – Track hits per tag (time-series database)
+- **Usage statistics** – Upload date and hits per tag in SQLite (`DB_PATH`), hits written in batches so serving files never waits for the database
 - **Auto-cleanup** – Delete tags after X days without hits (configurable)
 - **Configurable caching headers** – `Cache-Control: public, max-age=<CACHE_MAX_AGE>, immutable` on served assets
 - **CORS configuration**
@@ -48,6 +48,10 @@ STORAGE_PATH=./uploads
 # Requests for a host that is not in ALLOWED_HOSTS get a 404 (except /health)
 # STORAGE_PER_HOST=true
 # ALLOWED_HOSTS=assets.domain1.com,assets.domain2.com
+
+# Stats database (SQLite): upload date and hits of each tag, used by the auto-cleanup
+# Hits are counted in memory and written every minute, and when the server stops
+# DB_PATH=./upload/.assets-manager.db   (default: <STORAGE_PATH>/.assets-manager.db)
 
 # Future: S3 storage
 # STORAGE_TYPE=s3

@@ -6,6 +6,8 @@ use crate::config::Config;
 
 pub struct StoragePath {
     base: PathBuf,
+    // Host of the request when STORAGE_PER_HOST is enabled, "" otherwise
+    host: String,
 }
 
 impl StoragePath {
@@ -13,7 +15,11 @@ impl StoragePath {
         let base = Path::new(storage_path)
             .canonicalize()
             .map_err(|_| Status::InternalServerError)?;
-        Ok(Self { base })
+        Ok(Self { base, host: String::new() })
+    }
+
+    pub fn host(&self) -> &str {
+        &self.host
     }
 
     pub fn resolve(&self, path:&str) -> Result<PathBuf, Status> {
@@ -89,7 +95,7 @@ impl<'r> FromRequest<'r> for StoragePath {
         }
 
         match host_path.to_str().map(StoragePath::new) {
-            Some(Ok(storage)) => Outcome::Success(storage),
+            Some(Ok(storage)) => Outcome::Success(StoragePath { host, ..storage }),
             _ => Outcome::Error((Status::InternalServerError, ())),
         }
     }

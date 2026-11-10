@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use rocket::{post, uri, FromForm};
+use rocket::{post, uri, FromForm, State};
 use rocket::data::{Data, Limits, ToByteUnit};
 use rocket::form::Form;
 use rocket::fs::TempFile;
@@ -9,6 +9,7 @@ use zip::result::ZipError;
 use crate::assets;
 use crate::auth_guard::IsAuth;
 use crate::host::RequestInfo;
+use crate::stats::Stats;
 use crate::storage::{validate_tag, StoragePath};
 
 #[derive(FromForm)]
@@ -24,6 +25,7 @@ pub async fn post_asset(
     mut form: Form<Upload<'_>> ,
     storage_path: StoragePath,
     request_info: RequestInfo,
+    stats: &State<Stats>,
 )  -> Result<String, Status> {
 
     validate_tag(&tag)?;
@@ -47,6 +49,8 @@ pub async fn post_asset(
         Status::InternalServerError
     })?;
 
+    stats.record_upload(storage_path.host(), &tag).await;
+
     let path = uri!(assets::get_asset(&tag, PathBuf::from(&file_name)));
     let full_url = format!("{}://{}{}", request_info.protocol, request_info.host, path);
 
@@ -68,6 +72,7 @@ pub async fn post_asset_zip(
     tag: String,
     form: Form<Upload<'_>> ,
     storage_path: StoragePath,
+    stats: &State<Stats>,
 )  -> Result< String,Status> {
     validate_tag(&tag)?;
     let full_path = storage_path.resolve(&tag).map_err(|_| Status::BadRequest)?;
@@ -86,6 +91,7 @@ pub async fn post_asset_zip(
     zip.extract(&full_path).map_err(zip_error_status)?;
 
 
+    stats.record_upload(storage_path.host(), &tag).await;
     log::info!("Zip extracted: {} files to tag {}", zip.len(), tag);
 
     Ok(format!("Extracted {} files to {}", zip.len(), tag))
