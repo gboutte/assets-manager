@@ -43,7 +43,9 @@ pub async fn post_asset(
 
     let prefix = full_path.parent().ok_or_else(|| Status::InternalServerError)?;
     std::fs::create_dir_all(prefix).map_err(|_| Status::InternalServerError)?;
-    form.file.persist_to(&full_path).await.map_err(|e| {
+    // Not persist_to: it renames the temp file, which fails when the storage is on another
+    // filesystem than the temp dir (e.g. a Docker volume). move_copy_to copies then deletes it
+    form.file.move_copy_to(&full_path).await.map_err(|e| {
         log::error!("Failed to write file {}: {}", full_path.display(), e);
         Status::InternalServerError
     })?;
