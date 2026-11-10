@@ -1,7 +1,23 @@
+use std::env;
+use rocket::figment::Figment;
 use assets_manager::config;
 use assets_manager::create_rocket;
 
 
+// HOST and PORT override Rocket's own ROCKET_ADDRESS / ROCKET_PORT (default 127.0.0.1:8000)
+fn server_figment() -> Result<Figment, String> {
+    let mut figment = rocket::Config::figment();
+
+    if let Ok(host) = env::var("HOST") {
+        figment = figment.merge(("address", host));
+    }
+    if let Ok(port) = env::var("PORT") {
+        let port = port.parse::<u16>().map_err(|_| format!("Invalid PORT: {}", port))?;
+        figment = figment.merge(("port", port));
+    }
+
+    Ok(figment)
+}
 
 fn rocket() -> rocket::Rocket<rocket::Build> {
 
@@ -15,15 +31,24 @@ fn rocket() -> rocket::Rocket<rocket::Build> {
             std::process::exit(1);
         }
     };
+    let figment = match server_figment() {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("Configuration error: {}", e);
+            std::process::exit(1);
+        }
+    };
     println!("{} API token(s) loaded", config.api_tokens.len());
-    
-    create_rocket(config)
+
+    create_rocket(config).configure(figment)
 }
 
 
 #[rocket::main]
 async fn main() {
-    let _ = rocket()
-        .launch()
-        .await;
+    // Exit with an error code if the server can't start (e.g. port already in use)
+    if let Err(e) = rocket().launch().await {
+        eprintln!("Server error: {}", e);
+        std::process::exit(1);
+    }
 }
