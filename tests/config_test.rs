@@ -14,6 +14,7 @@ mod tests {
         for name in names {
             unsafe { env::remove_var(name); }
         }
+        unsafe { env::remove_var("CACHE_MAX_AGE"); }
     }
 
     #[test]
@@ -33,7 +34,8 @@ mod tests {
         };
         assert_eq!(config.api_tokens, vec!["test-token"]);
         assert_eq!(config.storage_type, "filesystem");
-        assert_eq!(config.storage_path, "./test-uploads")
+        assert_eq!(config.storage_path, "./test-uploads");
+        assert_eq!(config.cache_max_age, 31536000);
     }
 
     #[test]
@@ -156,6 +158,43 @@ mod tests {
         let config = config::Config::from_env();
         assert!(config.is_err());
         assert!(config.unwrap_err().contains("API_TOKEN"));
+
+        clear_api_tokens();
+    }
+
+    #[test]
+    #[serial]
+    fn test_cache_max_age() {
+
+        clear_api_tokens();
+        unsafe {
+            env::set_var("API_TOKEN", "test-token");
+            env::set_var("STORAGE_PATH", "./test-uploads");
+            env::set_var("STORAGE_TYPE", "filesystem");
+            env::set_var("CACHE_MAX_AGE", "3600");
+        }
+
+        let config = config::Config::from_env().expect("valid config");
+        assert_eq!(config.cache_max_age, 3600);
+
+        clear_api_tokens();
+    }
+
+    #[test]
+    #[serial]
+    fn test_invalid_cache_max_age() {
+
+        clear_api_tokens();
+        unsafe {
+            env::set_var("API_TOKEN", "test-token");
+            env::set_var("STORAGE_PATH", "./test-uploads");
+            env::set_var("STORAGE_TYPE", "filesystem");
+            env::set_var("CACHE_MAX_AGE", "one-hour");
+        }
+
+        let config = config::Config::from_env();
+        assert!(config.is_err());
+        assert!(config.unwrap_err().contains("Invalid CACHE_MAX_AGE"));
 
         clear_api_tokens();
     }

@@ -1,13 +1,30 @@
 use std::path::{Path, PathBuf};
-use rocket::{get};
+use rocket::{get, Responder};
 use rocket::fs::{NamedFile};
-use rocket::http::Status;
+use rocket::http::{Header, Status};
 use rocket::State;
 use crate::config::Config;
 use crate::storage::validate_tag;
 
+// A served file with its Cache-Control header
+#[derive(Responder)]
+pub struct CachedFile {
+    file: NamedFile,
+    cache_control: Header<'static>,
+}
+
+fn cache_control_header(max_age: u64) -> Header<'static> {
+    let value = if max_age == 0 {
+        "no-cache".to_string()
+    } else {
+        // Files of a tag never change, so the browser doesn't even need to revalidate them
+        format!("public, max-age={}, immutable", max_age)
+    };
+    Header::new("Cache-Control", value)
+}
+
 #[get("/<tag>/<file_name..>")]
-pub async fn get_asset(tag: String, file_name:PathBuf, config: &State<Config>) -> Result<NamedFile, Status> {
+pub async fn get_asset(tag: String, file_name:PathBuf, config: &State<Config>) -> Result<CachedFile, Status> {
 
     validate_tag(&tag)?;
 
@@ -26,5 +43,10 @@ pub async fn get_asset(tag: String, file_name:PathBuf, config: &State<Config>) -
         return Err(Status::BadRequest);  // Path traversal attempt (e.g., symlink escape)
     }
 
-    NamedFile::open(full_path).await.map_err(|_| Status::NotFound)
+    let file = NamedFile::open(full_path).await.map_err(|_| Status::NotFound)?;
+
+    Ok(CachedFile {
+        file,
+        cache_control: cache_control_header(config.cache_max_age),
+    })
 }

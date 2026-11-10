@@ -18,7 +18,7 @@ A lightweight static asset server written in Rust for learning purposes. Upload 
 - **Delete tags** – Remove a version and all its files
 - **Usage statistics** – Track hits per tag (time-series database)
 - **Auto-cleanup** – Delete tags after X days without hits (configurable)
-- **Configurable caching headers**
+- **Configurable caching headers** – `Cache-Control: public, max-age=<CACHE_MAX_AGE>, immutable` on served assets
 - **CORS configuration**
 
 ## Configuration
@@ -38,6 +38,10 @@ API_TOKEN=your-secret-token-here
 # Storage
 STORAGE_TYPE=filesystem
 STORAGE_PATH=./uploads
+
+# Cache: Cache-Control max-age in seconds for served assets (default: 1 year, 0 = no-cache)
+# Assets are sent as immutable: upload new files under a new tag rather than overwriting a tag
+# CACHE_MAX_AGE=31536000
 
 # Future: S3 storage
 # STORAGE_TYPE=s3

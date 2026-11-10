@@ -1,12 +1,16 @@
 use std::env;
 
 const API_TOKEN_PREFIX: &str = "API_TOKEN";
+// One year: assets of a tag never change, browsers can keep them
+const DEFAULT_CACHE_MAX_AGE: u64 = 31_536_000;
 
 #[derive(Debug)]
 pub struct Config {
     pub api_tokens: Vec<String>,
     pub storage_path: String,
     pub storage_type: String,
+    // Cache-Control max-age in seconds for served assets, 0 disables caching
+    pub cache_max_age: u64,
 }
 
 impl Config {
@@ -39,10 +43,17 @@ impl Config {
             return Err(format!("Invalid storage type: {}, allowed values {}", storage_type_value, valid_storage_types.join(", ")));
         }
 
+        let cache_max_age = match env::var("CACHE_MAX_AGE") {
+            Ok(value) => value.parse::<u64>()
+                .map_err(|_| format!("Invalid CACHE_MAX_AGE: {}, expected a number of seconds", value))?,
+            Err(_) => DEFAULT_CACHE_MAX_AGE,
+        };
+
         Ok(Config {
             api_tokens,
             storage_path: storage_path.unwrap(),
             storage_type: storage_type_value,
+            cache_max_age,
         })
 
     }

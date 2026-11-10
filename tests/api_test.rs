@@ -23,6 +23,7 @@ fn health_check() {
         api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
+        cache_max_age: 31536000,
     };
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
@@ -42,6 +43,7 @@ fn health_check_degraded() {
         api_tokens: vec!["test-token".to_string()],
         storage_path: "./test-uploads".to_string(),
         storage_type: "filesystem".to_string(),
+        cache_max_age: 31536000,
     };
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
@@ -68,6 +70,7 @@ fn tags_list() {
         api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
+        cache_max_age: 31536000,
     };
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
@@ -106,6 +109,7 @@ fn delete_tag() {
         api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
+        cache_max_age: 31536000,
     };
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
@@ -134,6 +138,7 @@ fn delete_tag_not_found() {
         api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
+        cache_max_age: 31536000,
     };
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
@@ -150,6 +155,7 @@ fn multiple_api_tokens() {
         api_tokens: vec!["token-ci".to_string(), "token-deploy".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
+        cache_max_age: 31536000,
     };
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
@@ -178,11 +184,14 @@ fn file_get() {
         api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
+        cache_max_age: 31536000,
     };
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
     let response = client.get("/v1.0.0/test-file.txt").dispatch();
     assert_eq!(response.status(), Status::NotFound,"/v1.0.0/test-file.txt should be not found");
+    // An error must never be cached
+    assert_eq!(response.headers().get_one("Cache-Control"), None);
 
 
 
@@ -192,6 +201,7 @@ fn file_get() {
     let response = client.get("/v1.0.0/test-file.txt").dispatch();
     assert_eq!(response.status(), Status::Ok);
     assert_eq!(response.content_type(), Some(ContentType::Plain));
+    assert_eq!(response.headers().get_one("Cache-Control"), Some("public, max-age=31536000, immutable"));
     assert_eq!(response.into_string(), Some("test".to_string()));
 
 
@@ -200,6 +210,32 @@ fn file_get() {
     cleanup_upload_dirs();
 
 }
+#[test]
+#[serial]
+fn file_get_cache_disabled() {
+
+    cleanup_upload_dirs();
+
+    let config: Config = Config {
+        api_tokens: vec!["test-token".to_string()],
+        storage_path: "./upload".to_string(),
+        storage_type: "filesystem".to_string(),
+        cache_max_age: 0,
+    };
+
+    let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
+
+    std::fs::create_dir("./upload/v1.0.0").unwrap();
+    std::fs::write("./upload/v1.0.0/test-file.txt", "test").unwrap();
+
+    let response = client.get("/v1.0.0/test-file.txt").dispatch();
+    assert_eq!(response.status(), Status::Ok);
+    assert_eq!(response.headers().get_one("Cache-Control"), Some("no-cache"));
+
+    //Clean up
+    cleanup_upload_dirs();
+}
+
 #[test]
 #[serial]
 fn file_get_path_traversal() {
@@ -212,6 +248,7 @@ fn file_get_path_traversal() {
         api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
+        cache_max_age: 31536000,
     };
 
     let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
@@ -251,6 +288,7 @@ fn test_upload_file() {
         api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
+        cache_max_age: 31536000,
     };
 
     let client = Client::tracked(create_rocket(config)).unwrap();
@@ -291,6 +329,7 @@ fn test_upload_file_no_auth() {
         api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
+        cache_max_age: 31536000,
     };
 
     let client = Client::tracked(create_rocket(config)).unwrap();
@@ -323,6 +362,7 @@ fn test_upload_file_persist_error() {
         api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
+        cache_max_age: 31536000,
     };
 
     let client = Client::tracked(create_rocket(config)).unwrap();
@@ -357,6 +397,7 @@ fn test_upload_zip() {
         api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
+        cache_max_age: 31536000,
     };
 
     let client = Client::tracked(create_rocket(config)).unwrap();
@@ -408,6 +449,7 @@ fn test_upload_zip_slip() {
         api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
+        cache_max_age: 31536000,
     };
 
     let client = Client::tracked(create_rocket(config)).unwrap();
@@ -451,6 +493,7 @@ fn invalid_tag() {
         api_tokens: vec!["test-token".to_string()],
         storage_path: "./upload".to_string(),
         storage_type: "filesystem".to_string(),
+        cache_max_age: 31536000,
     };
 
     let client = Client::tracked(create_rocket(config)).unwrap();
