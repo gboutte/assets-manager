@@ -17,7 +17,15 @@ pub struct Config {
     pub allowed_hosts: Vec<String>,
     // SQLite database keeping upload dates and hits of each tag
     pub db_path: String,
+    // STATS_ENABLED; the stats database is also opened when a cleanup rule needs it
+    pub stats_enabled: bool,
     pub cleanup: CleanupConfig,
+}
+
+impl Config {
+    pub fn stats_needed(&self) -> bool {
+        self.stats_enabled || self.cleanup.has_rules()
+    }
 }
 
 // Auto-cleanup rules, see cleanup.rs. A tag is deleted when it is too old OR idle for too long,
@@ -135,6 +143,12 @@ impl Config {
             return Err("ALLOWED_HOSTS is required when STORAGE_PER_HOST is enabled".to_string());
         }
 
+        let stats_enabled = match env::var("STATS_ENABLED") {
+            Ok(value) => Config::parse_bool(&value)
+                .ok_or_else(|| format!("Invalid STATS_ENABLED: {}, expected true or false", value))?,
+            Err(_) => false,
+        };
+
         let storage_path = storage_path.unwrap();
         // Starts with a dot so it is never listed or served as a tag
         let db_path = env::var("DB_PATH").unwrap_or_else(|_| format!("{}/.assets-manager.db", storage_path));
@@ -147,6 +161,7 @@ impl Config {
             storage_per_host,
             allowed_hosts,
             db_path,
+            stats_enabled,
             cleanup: CleanupConfig::from_env()?,
         })
 

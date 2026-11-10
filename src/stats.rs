@@ -42,10 +42,12 @@ struct Inner {
     pending: Mutex<HashMap<TagKey, PendingHits>>,
 }
 
-// Cheap to clone: all clones share the same connection and counters
+// Cheap to clone: all clones share the same connection and counters.
+// None when stats are disabled (no STATS_ENABLED and no cleanup rule): no database is
+// created and every method does nothing, so the routes don't have to care
 #[derive(Clone)]
 pub struct Stats {
-    inner: Arc<Inner>,
+    inner: Option<Arc<Inner>>,
 }
 
 pub fn now() -> i64 {
@@ -69,16 +71,25 @@ impl Stats {
         ).map_err(|e| format!("Cannot create database schema: {}", e))?;
 
         Ok(Stats {
-            inner: Arc::new(Inner {
+            inner: Some(Arc::new(Inner {
                 conn: Mutex::new(conn),
                 pending: Mutex::new(HashMap::new()),
-            }),
+            })),
         })
+    }
+
+    pub fn disabled() -> Self {
+        Stats { inner: None }
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.inner.is_some()
     }
 
     // Called on every served file: memory only, no I/O
     pub fn record_hit(&self, host: &str, tag: &str) {
-        if let Ok(mut pending) = self.inner.pending.lock() {
+        let Some(inner) = &self.inner else { return };
+        if let Ok(mut pending) = inner.pending.lock() {
             let hits = pending.entry((host.to_string(), tag.to_string())).or_default();
             hits.count += 1;
             hits.last_hit_at = now();
@@ -87,6 +98,9 @@ impl Stats {
 
     // Keeps the first upload date: uploading more files to an existing tag doesn't make it new
     pub async fn record_upload(&self, host: &str, tag: &str) {
+        if !self.is_enabled() {
+            return;
+        }
         let (host, tag) = (host.to_string(), tag.to_string());
         self.run_blocking("record upload", move |conn| {
             conn.execute(
@@ -97,8 +111,9 @@ impl Stats {
     }
 
     pub async fn remove_tag(&self, host: &str, tag: &str) {
+        let Some(inner) = &self.inner else { return };
         let key = (host.to_string(), tag.to_string());
-        if let Ok(mut pending) = self.inner.pending.lock() {
+        if let Ok(mut pending) = inner.pending.lock() {
             pending.remove(&key);
         }
         self.run_blocking("remove tag", move |conn| {
@@ -107,9 +122,11 @@ impl Stats {
     }
 
     // Stats of a tag, including the hits not flushed yet so the numbers are always live
-    pub async fn tag_stats(&self, host: &str, tag: &str) -> TagStats {
+    // None when stats are disabled
+    pub async fn tag_stats(&self, host: &str, tag: &str) -> Option<TagStats> {
+        let inner = self.inner.as_ref()?;
         let key = (host.to_string(), tag.to_string());
-        let (pending_count, pending_last_hit) = match self.inner.pending.lock() {
+        let (pending_count, pending_last_hit) = match inner.pending.lock() {
             Ok(pending) => pending.get(&key).map(|h| (h.count, Some(h.last_hit_at))).unwrap_or((0, None)),
             Err(_) => (0, None),
         };
@@ -140,17 +157,20 @@ impl Stats {
             }
         };
 
-        TagStats {
+        Some(TagStats {
             tag: tag_name,
             uploaded_at,
             last_hit_at: last_hit_at.max(pending_last_hit),
             hits: hits + pending_count,
-        }
+        })
     }
 
     // (uploaded_at, last_hit_at) of every tag of a host, read from the database only:
     // call flush() first to include the pending hits
     pub async fn tag_dates(&self, host: &str) -> HashMap<String, (i64, Option<i64>)> {
+        if !self.is_enabled() {
+            return HashMap::new();
+        }
         let stats = self.clone();
         let host = host.to_string();
         let result = rocket::tokio::task::spawn_blocking(move || {
@@ -177,13 +197,17 @@ impl Stats {
     }
 
     pub async fn flush(&self) {
+        if !self.is_enabled() {
+            return;
+        }
         let stats = self.clone();
         let _ = rocket::tokio::task::spawn_blocking(move || stats.flush_blocking()).await;
     }
 
     // Writes all pending hits in a single transaction
     pub fn flush_blocking(&self) {
-        let pending = match self.inner.pending.lock() {
+        let Some(inner) = &self.inner else { return };
+        let pending = match inner.pending.lock() {
             Ok(mut pending) => std::mem::take(&mut *pending),
             Err(_) => return,
         };
@@ -216,6 +240,9 @@ impl Stats {
     // directory as upload date. File dates are unreliable (lost on copy), so this is
     // only done once: tags already in the database are left untouched
     pub fn seed_existing_tags(&self, config: &Config) {
+        if !self.is_enabled() {
+            return;
+        }
         let hosts: Vec<String> = if config.storage_per_host {
             config.allowed_hosts.clone()
         } else {
@@ -263,7 +290,9 @@ impl Stats {
     }
 
     pub fn with_conn<T>(&self, f: impl FnOnce(&mut Connection) -> rusqlite::Result<T>) -> rusqlite::Result<T> {
-        let mut conn = self.inner.conn.lock()
+        let inner = self.inner.as_ref()
+            .ok_or_else(|| rusqlite::Error::InvalidParameterName("stats are disabled".to_string()))?;
+        let mut conn = inner.conn.lock()
             .map_err(|_| rusqlite::Error::InvalidParameterName("database mutex poisoned".to_string()))?;
         f(&mut conn)
     }

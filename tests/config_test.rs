@@ -19,6 +19,7 @@ mod tests {
             env::remove_var("STORAGE_PER_HOST");
             env::remove_var("ALLOWED_HOSTS");
             env::remove_var("DB_PATH");
+            env::remove_var("STATS_ENABLED");
             for name in ["CLEANUP_MAX_AGE_DAYS", "CLEANUP_MAX_IDLE_DAYS", "CLEANUP_KEEP_LAST",
                          "CLEANUP_KEEP_TAGS", "CLEANUP_INTERVAL_MINUTES", "CLEANUP_DRY_RUN"] {
                 env::remove_var(name);
@@ -346,6 +347,42 @@ mod tests {
             assert!(config.unwrap_err().contains(&format!("Invalid {}", name)), "{}={}", name, value);
             unsafe { env::remove_var(name); }
         }
+
+        clear_api_tokens();
+    }
+
+    #[test]
+    #[serial]
+    fn test_stats_needed() {
+
+        // Neither stats nor cleanup: no database
+        set_base_env();
+        let config = config::Config::from_env().expect("valid config");
+        assert!(!config.stats_enabled);
+        assert!(!config.stats_needed());
+
+        // Explicitly enabled
+        unsafe { env::set_var("STATS_ENABLED", "true"); }
+        assert!(config::Config::from_env().unwrap().stats_needed());
+
+        // Enabled by a cleanup rule, even with STATS_ENABLED=false
+        unsafe {
+            env::set_var("STATS_ENABLED", "false");
+            env::set_var("CLEANUP_MAX_IDLE_DAYS", "30");
+        }
+        let config = config::Config::from_env().unwrap();
+        assert!(!config.stats_enabled);
+        assert!(config.stats_needed());
+
+        // keep_* alone are not rules
+        unsafe {
+            env::remove_var("CLEANUP_MAX_IDLE_DAYS");
+            env::set_var("CLEANUP_KEEP_LAST", "3");
+        }
+        assert!(!config::Config::from_env().unwrap().stats_needed());
+
+        unsafe { env::set_var("STATS_ENABLED", "maybe"); }
+        assert!(config::Config::from_env().unwrap_err().contains("Invalid STATS_ENABLED"));
 
         clear_api_tokens();
     }

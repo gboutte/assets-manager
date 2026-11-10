@@ -41,6 +41,10 @@ pub fn create_rocket(config: config::Config) -> rocket::Rocket<rocket::Build> {
 fn stats_fairing() -> AdHoc {
     AdHoc::try_on_ignite("Stats database", |rocket| async {
         let Some(config) = rocket.state::<config::Config>() else { return Err(rocket) };
+        if !config.stats_needed() {
+            log::info!("Stats disabled (set STATS_ENABLED=true or a CLEANUP_* rule to enable them)");
+            return Ok(rocket.manage(Stats::disabled()));
+        }
         let stats = match Stats::open(&config.db_path) {
             Ok(stats) => stats,
             Err(e) => {

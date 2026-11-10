@@ -19,6 +19,7 @@ fn test_config() -> Config {
         storage_per_host: false,
         allowed_hosts: vec![],
         db_path: TEST_DB.to_string(),
+        stats_enabled: true,
         cleanup: CleanupConfig::default(),
     }
 }

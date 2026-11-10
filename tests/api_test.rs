@@ -23,6 +23,7 @@ fn test_config() -> Config {
         storage_per_host: false,
         allowed_hosts: vec![],
         db_path: TEST_DB.to_string(),
+        stats_enabled: false,
         cleanup: CleanupConfig::default(),
     }
 }
@@ -158,6 +159,24 @@ fn multiple_api_tokens() {
         let response = client.delete("/tags/unknown-tag").header(Header::new("Authorization", header)).dispatch();
         assert_eq!(response.status(), expected, "Authorization: {}", header);
     }
+}
+#[test]
+#[serial]
+fn stats_disabled_by_default() {
+
+    cleanup_upload_dirs();
+    let client = Client::tracked(create_rocket(test_config())).unwrap();
+
+    std::fs::create_dir("./upload/v1.0.0").unwrap();
+    std::fs::write("./upload/v1.0.0/test-file.txt", "test").unwrap();
+    assert_eq!(client.get("/v1.0.0/test-file.txt").dispatch().status(), Status::Ok);
+
+    // No database file, and the stats route doesn't exist
+    assert!(!Path::new(TEST_DB).exists());
+    let response = client.get("/tags/v1.0.0/stats").header(Header::new("Authorization","Bearer test-token")).dispatch();
+    assert_eq!(response.status(), Status::NotFound);
+
+    cleanup_upload_dirs();
 }
 #[test]
 #[serial]

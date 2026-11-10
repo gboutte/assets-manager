@@ -50,7 +50,9 @@ STORAGE_PATH=./uploads
 # ALLOWED_HOSTS=assets.domain1.com,assets.domain2.com
 
 # Stats database (SQLite): upload date and hits of each tag, used by the auto-cleanup
+# Only created when STATS_ENABLED=true or a CLEANUP_MAX_AGE_DAYS / CLEANUP_MAX_IDLE_DAYS rule is set
 # Hits are counted in memory and written every minute, and when the server stops
+# STATS_ENABLED=true
 # DB_PATH=./upload/.assets-manager.db   (default: <STORAGE_PATH>/.assets-manager.db)
 
 # Future: S3 storage

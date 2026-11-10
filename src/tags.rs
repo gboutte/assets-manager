@@ -48,7 +48,8 @@ pub async fn tag_stats(
         return Err(Status::NotFound);
     }
 
-    Ok(Json(stats.tag_stats(storage.host(), &tag).await))
+    // Stats disabled: the route behaves as if it didn't exist
+    stats.tag_stats(storage.host(), &tag).await.map(Json).ok_or(Status::NotFound)
 }
 
 #[delete("/<tag>")]
