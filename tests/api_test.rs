@@ -273,6 +273,39 @@ fn test_upload_file_no_auth() {
 
 #[test]
 #[serial]
+fn test_upload_file_persist_error() {
+
+    //Clean up
+    cleanup_upload_dirs();
+
+    let config: Config = Config {
+        api_token: "test-token".to_string(),
+        storage_path: "./upload".to_string(),
+        storage_type: "filesystem".to_string(),
+    };
+
+    let client = Client::tracked(create_rocket(config)).unwrap();
+
+    // A directory already exists where the file should be written, so the write fails
+    std::fs::create_dir_all("./upload/v1.0.0/test-file.txt").unwrap();
+
+    let (content_type, body) = multipart_body("test-file.txt", "Hello world!");
+    let auth_header = Header::new("Authorization","Bearer test-token");
+
+    let response = client.post("/upload/v1.0.0/test-file.txt")
+        .header(content_type)
+        .header(auth_header)
+        .body(body)
+        .dispatch();
+
+    assert_eq!(response.status(), Status::InternalServerError);
+
+    //Clean up
+    cleanup_upload_dirs();
+}
+
+#[test]
+#[serial]
 fn test_upload_zip() {
 
 

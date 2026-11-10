@@ -46,7 +46,10 @@ pub async fn post_asset(
 
     let prefix = full_path.parent().ok_or_else(|| Status::InternalServerError)?;
     std::fs::create_dir_all(prefix).map_err(|_| Status::InternalServerError)?;
-    let _ = form.file.persist_to(full_path).await;
+    form.file.persist_to(&full_path).await.map_err(|e| {
+        log::error!("Failed to write file {}: {}", full_path.display(), e);
+        Status::InternalServerError
+    })?;
 
     let path = uri!(assets::get_asset(&tag, PathBuf::from(&file_name)));
     let full_url = format!("{}://{}{}", request_info.protocol, request_info.host, path);
