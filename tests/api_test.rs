@@ -1,7 +1,7 @@
 use std::path::Path;
 use rocket::http::{ContentType, Header, Status};
 use rocket::local::blocking::{Client};
-use assets_manager::config::Config;
+use assets_manager::config::{CleanupConfig, Config};
 use assets_manager::create_rocket;
 use rocket::serde::Deserialize;
 use serial_test::serial;
@@ -23,6 +23,7 @@ fn test_config() -> Config {
         storage_per_host: false,
         allowed_hosts: vec![],
         db_path: TEST_DB.to_string(),
+        cleanup: CleanupConfig::default(),
     }
 }
 

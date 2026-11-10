@@ -5,6 +5,7 @@ pub mod assets;
 pub mod health;
 pub mod tags;
 pub mod stats;
+pub mod cleanup;
 mod upload;
 mod host;
 mod auth_guard;
@@ -27,6 +28,7 @@ pub fn create_rocket(config: config::Config) -> rocket::Rocket<rocket::Build> {
     rocket::build()
         .attach(cors)
         .attach(stats_fairing())
+        .attach(cleanup_fairing())
         .mount("/health", rocket::routes![health::health])
         .mount("/tags", rocket::routes![tags::tags_list, tags::tag_stats, tags::delete_tag])
         .mount("/upload", rocket::routes![upload::post_asset, upload::post_asset_zip, upload::reject_upload])
@@ -66,4 +68,37 @@ fn stats_fairing() -> AdHoc {
                 }
             }))))
     })
+}
+
+// Runs the cleanup rules every CLEANUP_INTERVAL_MINUTES once the server is launched.
+// The first run happens after one interval, not at startup, so a restart never deletes anything right away
+fn cleanup_fairing() -> AdHoc {
+    AdHoc::on_liftoff("Cleanup task", |rocket| Box::pin(async move {
+        let (Some(config), Some(stats)) = (rocket.state::<config::Config>(), rocket.state::<Stats>()) else { return };
+        let rules = &config.cleanup;
+        if !rules.has_rules() || rules.interval_minutes == 0 {
+            log::info!("Auto-cleanup disabled");
+            return;
+        }
+        log::info!(
+            "Auto-cleanup every {} minute(s){}",
+            rules.interval_minutes,
+            if rules.dry_run { " (dry run: nothing is deleted)" } else { "" }
+        );
+
+        let config = config.clone();
+        let stats = stats.clone();
+        rocket::tokio::spawn(async move {
+            let period = std::time::Duration::from_secs(config.cleanup.interval_minutes * 60);
+            let start = rocket::tokio::time::Instant::now() + period;
+            let mut interval = rocket::tokio::time::interval_at(start, period);
+            loop {
+                interval.tick().await;
+                let deleted = cleanup::run_cleanup(&config, &stats, config.cleanup.dry_run).await;
+                if !deleted.is_empty() {
+                    log::info!("Cleanup: {} tag(s) {}", deleted.len(), if config.cleanup.dry_run { "would be deleted" } else { "deleted" });
+                }
+            }
+        });
+    }))
 }

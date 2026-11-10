@@ -19,6 +19,10 @@ mod tests {
             env::remove_var("STORAGE_PER_HOST");
             env::remove_var("ALLOWED_HOSTS");
             env::remove_var("DB_PATH");
+            for name in ["CLEANUP_MAX_AGE_DAYS", "CLEANUP_MAX_IDLE_DAYS", "CLEANUP_KEEP_LAST",
+                         "CLEANUP_KEEP_TAGS", "CLEANUP_INTERVAL_MINUTES", "CLEANUP_DRY_RUN"] {
+                env::remove_var(name);
+            }
         }
     }
 
@@ -285,6 +289,63 @@ mod tests {
 
         let config = config::Config::from_env().expect("valid config");
         assert_eq!(config.db_path, "/var/lib/assets/stats.db");
+
+        clear_api_tokens();
+    }
+
+    #[test]
+    #[serial]
+    fn test_cleanup_default() {
+
+        set_base_env();
+        let cleanup = config::Config::from_env().expect("valid config").cleanup;
+        assert!(!cleanup.has_rules());
+        assert_eq!(cleanup.keep_last, 0);
+        assert_eq!(cleanup.interval_minutes, 60);
+        assert!(!cleanup.dry_run);
+
+        clear_api_tokens();
+    }
+
+    #[test]
+    #[serial]
+    fn test_cleanup_rules() {
+
+        set_base_env();
+        unsafe {
+            env::set_var("CLEANUP_MAX_AGE_DAYS", "90");
+            env::set_var("CLEANUP_MAX_IDLE_DAYS", "30");
+            env::set_var("CLEANUP_KEEP_LAST", "5");
+            env::set_var("CLEANUP_KEEP_TAGS", " prod, v1.* ,");
+            env::set_var("CLEANUP_INTERVAL_MINUTES", "15");
+            env::set_var("CLEANUP_DRY_RUN", "true");
+        }
+
+        let cleanup = config::Config::from_env().expect("valid config").cleanup;
+        assert!(cleanup.has_rules());
+        assert_eq!(cleanup.max_age_days, Some(90));
+        assert_eq!(cleanup.max_idle_days, Some(30));
+        assert_eq!(cleanup.keep_last, 5);
+        assert_eq!(cleanup.keep_tags, vec!["prod", "v1.*"]);
+        assert_eq!(cleanup.interval_minutes, 15);
+        assert!(cleanup.dry_run);
+
+        clear_api_tokens();
+    }
+
+    #[test]
+    #[serial]
+    fn test_invalid_cleanup_numbers() {
+
+        for (name, value) in [("CLEANUP_MAX_AGE_DAYS", "-1"), ("CLEANUP_MAX_IDLE_DAYS", "ten"),
+                              ("CLEANUP_KEEP_LAST", "1.5"), ("CLEANUP_INTERVAL_MINUTES", "x")] {
+            set_base_env();
+            unsafe { env::set_var(name, value); }
+
+            let config = config::Config::from_env();
+            assert!(config.unwrap_err().contains(&format!("Invalid {}", name)), "{}={}", name, value);
+            unsafe { env::remove_var(name); }
+        }
 
         clear_api_tokens();
     }

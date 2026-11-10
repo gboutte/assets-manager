@@ -3,7 +3,7 @@ use rocket::http::{ContentType, Header, Status};
 use rocket::local::blocking::Client;
 use rusqlite::{params, Connection, OptionalExtension};
 use serial_test::serial;
-use assets_manager::config::Config;
+use assets_manager::config::{CleanupConfig, Config};
 use assets_manager::create_rocket;
 use assets_manager::stats::{now, Stats};
 
@@ -19,6 +19,7 @@ fn test_config() -> Config {
         storage_per_host: false,
         allowed_hosts: vec![],
         db_path: TEST_DB.to_string(),
+        cleanup: CleanupConfig::default(),
     }
 }
 

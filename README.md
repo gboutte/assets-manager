@@ -18,7 +18,7 @@ A lightweight static asset server written in Rust for learning purposes. Upload 
 - **List tags** – View all available versions
 - **Delete tags** – Remove a version and all its files
 - **Usage statistics** – Upload date and hits per tag in SQLite (`DB_PATH`), hits written in batches so serving files never waits for the database
-- **Auto-cleanup** – Delete tags after X days without hits (configurable)
+- **Auto-cleanup** – Combinable rules (`CLEANUP_*`): max age, max idle time, keep the N last uploads, protected tags, dry-run mode
 - **Configurable caching headers** – `Cache-Control: public, max-age=<CACHE_MAX_AGE>, immutable` on served assets
 - **CORS configuration**
 
@@ -60,8 +60,15 @@ STORAGE_PATH=./uploads
 # S3_ACCESS_KEY=xxx
 # S3_SECRET_KEY=xxx
 
-# Future: Auto-cleanup
-# AUTO_DELETE_DAYS=30
+# Auto-cleanup: a tag is deleted when it is too old OR unused for too long,
+# unless it is one of the KEEP_LAST most recent uploads or matches KEEP_TAGS.
+# No MAX_AGE / MAX_IDLE rule = nothing is ever deleted. Rules apply per domain with STORAGE_PER_HOST.
+# CLEANUP_MAX_AGE_DAYS=90        # uploaded more than 90 days ago (0 + KEEP_LAST = keep only the last N)
+# CLEANUP_MAX_IDLE_DAYS=30       # not served for 30 days (counted from the upload if never served)
+# CLEANUP_KEEP_LAST=5            # always keep the 5 most recent uploads
+# CLEANUP_KEEP_TAGS=prod,v1.*    # always keep these tags ('*' matches anything)
+# CLEANUP_INTERVAL_MINUTES=60    # first run one interval after startup, 0 = no background task
+# CLEANUP_DRY_RUN=true           # only log what would be deleted
 ```
 
 ## API Endpoints
@@ -295,7 +302,7 @@ trait Storage {
 - [ ] Delete tag endpoint
 - [ ] S3 storage backend
 - [ ] Usage statistics (time-series DB)
-- [ ] Auto-cleanup of unused tags
+- [x] Auto-cleanup of unused tags
 
 ## License
 

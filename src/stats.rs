@@ -148,6 +148,34 @@ impl Stats {
         }
     }
 
+    // (uploaded_at, last_hit_at) of every tag of a host, read from the database only:
+    // call flush() first to include the pending hits
+    pub async fn tag_dates(&self, host: &str) -> HashMap<String, (i64, Option<i64>)> {
+        let stats = self.clone();
+        let host = host.to_string();
+        let result = rocket::tokio::task::spawn_blocking(move || {
+            stats.with_conn(|conn| {
+                let mut statement = conn.prepare("SELECT tag, uploaded_at, last_hit_at FROM tags WHERE host = ?1")?;
+                let rows = statement.query_map(params![host], |row| {
+                    Ok((row.get::<_, String>(0)?, (row.get::<_, i64>(1)?, row.get::<_, Option<i64>>(2)?)))
+                })?;
+                rows.collect::<rusqlite::Result<HashMap<_, _>>>()
+            })
+        }).await;
+
+        match result {
+            Ok(Ok(dates)) => dates,
+            Ok(Err(e)) => {
+                log::error!("Stats database error (read tag dates): {}", e);
+                HashMap::new()
+            }
+            Err(e) => {
+                log::error!("Stats task failed (read tag dates): {}", e);
+                HashMap::new()
+            }
+        }
+    }
+
     pub async fn flush(&self) {
         let stats = self.clone();
         let _ = rocket::tokio::task::spawn_blocking(move || stats.flush_blocking()).await;

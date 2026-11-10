@@ -4,7 +4,7 @@ const API_TOKEN_PREFIX: &str = "API_TOKEN";
 // One year: assets of a tag never change, browsers can keep them
 const DEFAULT_CACHE_MAX_AGE: u64 = 31_536_000;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Config {
     pub api_tokens: Vec<String>,
     pub storage_path: String,
@@ -17,6 +17,75 @@ pub struct Config {
     pub allowed_hosts: Vec<String>,
     // SQLite database keeping upload dates and hits of each tag
     pub db_path: String,
+    pub cleanup: CleanupConfig,
+}
+
+// Auto-cleanup rules, see cleanup.rs. A tag is deleted when it is too old OR idle for too long,
+// unless it is protected (one of the keep_last most recent, or matching keep_tags)
+#[derive(Debug, Clone)]
+pub struct CleanupConfig {
+    pub max_age_days: Option<u64>,
+    pub max_idle_days: Option<u64>,
+    pub keep_last: usize,
+    // Tag names or patterns with '*', e.g. "prod", "v1.*"
+    pub keep_tags: Vec<String>,
+    // 0 disables the background task
+    pub interval_minutes: u64,
+    // Only logs what would be deleted
+    pub dry_run: bool,
+}
+
+impl Default for CleanupConfig {
+    // No rule: nothing is ever deleted
+    fn default() -> Self {
+        CleanupConfig {
+            max_age_days: None,
+            max_idle_days: None,
+            keep_last: 0,
+            keep_tags: Vec::new(),
+            interval_minutes: 60,
+            dry_run: false,
+        }
+    }
+}
+
+impl CleanupConfig {
+    pub fn has_rules(&self) -> bool {
+        self.max_age_days.is_some() || self.max_idle_days.is_some()
+    }
+
+    fn from_env() -> Result<Self, String> {
+        let defaults = CleanupConfig::default();
+        let dry_run = match env::var("CLEANUP_DRY_RUN") {
+            Ok(value) => Config::parse_bool(&value)
+                .ok_or_else(|| format!("Invalid CLEANUP_DRY_RUN: {}, expected true or false", value))?,
+            Err(_) => defaults.dry_run,
+        };
+
+        Ok(CleanupConfig {
+            max_age_days: optional_number("CLEANUP_MAX_AGE_DAYS")?,
+            max_idle_days: optional_number("CLEANUP_MAX_IDLE_DAYS")?,
+            keep_last: optional_number("CLEANUP_KEEP_LAST")?.unwrap_or(defaults.keep_last),
+            keep_tags: env::var("CLEANUP_KEEP_TAGS").unwrap_or_default()
+                .split(',')
+                .map(|t| t.trim().to_string())
+                .filter(|t| !t.is_empty())
+                .collect(),
+            interval_minutes: optional_number("CLEANUP_INTERVAL_MINUTES")?.unwrap_or(defaults.interval_minutes),
+            dry_run,
+        })
+    }
+}
+
+// An unset or empty variable is None, anything else must be a number.
+// Generic over the number type: works for u64, usize... (anything that parses from a string)
+fn optional_number<T: std::str::FromStr>(name: &str) -> Result<Option<T>, String> {
+    match env::var(name) {
+        Ok(value) if !value.trim().is_empty() => value.trim().parse::<T>()
+            .map(Some)
+            .map_err(|_| format!("Invalid {}: {}, expected a positive number", name, value)),
+        _ => Ok(None),
+    }
 }
 
 impl Config {
@@ -78,6 +147,7 @@ impl Config {
             storage_per_host,
             allowed_hosts,
             db_path,
+            cleanup: CleanupConfig::from_env()?,
         })
 
     }
