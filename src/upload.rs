@@ -1,5 +1,4 @@
 use std::path::{Path, PathBuf};
-use filesize::file_real_size;
 use rocket::{post, uri, FromForm};
 use rocket::form::Form;
 use rocket::fs::TempFile;
@@ -32,9 +31,7 @@ pub async fn post_asset(
 
     let file_name = file_name_buf.clone().into_os_string().into_string().map_err(|_| Status::InternalServerError)?;
     let mimetype = form.file.content_type().cloned();
-    let uploaded_filepath = form.file.path().ok_or_else(|| Status::InternalServerError)?;
-
-    let filesize = file_real_size(uploaded_filepath).map_err(|_| Status::InternalServerError)?;
+    let filesize = form.file.len();
 
     let storage_path = StoragePath::new(&config.storage_path).map_err(|_| Status::InternalServerError)?;
 
@@ -56,7 +53,7 @@ pub async fn post_asset(
 
 
     log::info!(
-        "File uploaded: {}, type: {}, size: {}",
+        "File uploaded: {}, type: {}, size: {} bytes",
         full_url,
         mimetype.unwrap_or(ContentType::Binary),
         filesize);
