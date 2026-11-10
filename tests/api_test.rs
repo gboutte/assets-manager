@@ -127,6 +127,22 @@ fn delete_tag() {
 }
 #[test]
 #[serial]
+fn delete_tag_not_found() {
+
+    cleanup_upload_dirs();
+    let config: Config = Config {
+        api_token: "test-token".to_string(),
+        storage_path: "./upload".to_string(),
+        storage_type: "filesystem".to_string(),
+    };
+
+    let client = Client::tracked(create_rocket(config)).expect("valid rocket instance");
+
+    let response = client.delete("/tags/unknown-tag").header(Header::new("Authorization","Bearer test-token")).dispatch();
+    assert_eq!(response.status(), Status::NotFound);
+}
+#[test]
+#[serial]
 fn file_get() {
 
 

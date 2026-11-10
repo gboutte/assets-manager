@@ -1,3 +1,4 @@
+use std::io::ErrorKind;
 use std::path::Path;
 use rocket::{delete, get, State};
 use rocket::http::Status;
@@ -55,9 +56,12 @@ pub async fn delete_tag(
     }
 
 
-    std::fs::remove_dir_all(full_path).map_err(|e| {
-        log::error!("Failed to delete tag {}: {}", tag, e);
-        Status::InternalServerError
+    std::fs::remove_dir_all(full_path).map_err(|e| match e.kind() {
+        ErrorKind::NotFound => Status::NotFound,
+        _ => {
+            log::error!("Failed to delete tag {}: {}", tag, e);
+            Status::InternalServerError
+        }
     })?;
 
     log::info!("Tag deleted: {}", tag);
