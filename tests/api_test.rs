@@ -317,7 +317,74 @@ fn test_upload_zip() {
 
 }
 
+#[test]
+#[serial]
+fn test_upload_zip_slip() {
 
+    // Files the malicious zip tries to write outside of ./upload/v1.0.0
+    let escaped_files = ["./upload/zip-slip-evil.txt", "./zip-slip-evil.txt"];
+
+    //Clean up
+    cleanup_upload_dirs();
+    for file in escaped_files {
+        let _ = std::fs::remove_file(file);
+    }
+
+    let config: Config = Config {
+        api_token: "test-token".to_string(),
+        storage_path: "./upload".to_string(),
+        storage_type: "filesystem".to_string(),
+    };
+
+    let client = Client::tracked(create_rocket(config)).unwrap();
+
+
+    let auth_header = Header::new("Authorization","Bearer test-token");
+    let zip_bytes = create_zip_slip_zip();
+
+    let (content_type, body) = multipart_body_binary("archive.zip", &zip_bytes, "application/zip");
+
+    let response = client.post("/upload/v1.0.0")
+        .header(content_type)
+        .header(auth_header)
+        .body(body)
+        .dispatch();
+
+    // The archive is invalid because of the client, not because of the server
+    assert_eq!(response.status(), Status::BadRequest);
+
+    // No file must have been written outside of the tag directory
+    for file in escaped_files {
+        assert!(!Path::new(file).exists(), "{} should not exist", file);
+    }
+
+    //Clean up
+    cleanup_upload_dirs();
+    for file in escaped_files {
+        let _ = std::fs::remove_file(file);
+    }
+
+}
+
+
+
+fn create_zip_slip_zip() -> Vec<u8> {
+    let mut buffer = Cursor::new(Vec::new());
+    let mut zip = ZipWriter::new(&mut buffer);
+
+    let options = SimpleFileOptions::default();
+
+    // Escapes ./upload/v1.0.0 to ./upload
+    zip.start_file("../zip-slip-evil.txt", options).unwrap();
+    zip.write_all(b"evil").unwrap();
+
+    // Escapes ./upload to the project root
+    zip.start_file("../../zip-slip-evil.txt", options).unwrap();
+    zip.write_all(b"evil").unwrap();
+
+    zip.finish().unwrap();
+    buffer.into_inner()
+}
 
 fn create_test_zip() -> Vec<u8> {
     let mut buffer = Cursor::new(Vec::new());

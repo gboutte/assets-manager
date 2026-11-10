@@ -6,6 +6,7 @@ use rocket::fs::TempFile;
 use rocket::http::{ContentType, Status};
 use rocket::State;
 use zip::ZipArchive;
+use zip::result::ZipError;
 use crate::assets;
 use crate::auth_guard::IsAuth;
 use crate::config::Config;
@@ -79,10 +80,18 @@ pub async fn post_asset_zip(
     let uploaded_filepath = form.file.path().ok_or_else(|| Status::InternalServerError)?;
 
     let file = std::fs::File::open(uploaded_filepath).map_err(|_| Status::InternalServerError)?;
-    let mut zip = ZipArchive::new(file).map_err(|_| Status::InternalServerError)?;
+    let mut zip = ZipArchive::new(file).map_err(zip_error_status)?;
 
-    zip.extract(&full_path).map_err(|_| Status::InternalServerError)?;
+    zip.extract(&full_path).map_err(zip_error_status)?;
 
 
     Ok(format!("Extracted {} files to {}", zip.len(), tag))
+}
+
+// A malformed or malicious archive (e.g. zip slip) is a client error, an i/o failure is a server error
+fn zip_error_status(error: ZipError) -> Status {
+    match error {
+        ZipError::Io(_) => Status::InternalServerError,
+        _ => Status::BadRequest,
+    }
 }
