@@ -93,8 +93,22 @@ STORAGE_PATH=./uploads
 | `POST` | `/upload/<tag>/<filename>` | Upload a single file |
 | `POST` | `/upload/<tag>` | Upload a ZIP archive (extracts contents) |
 | `DELETE` | `/tags/<tag>` | Delete a tag and all its files |
+| `POST` | `/cleanup` | Run the cleanup rules now, on every domain. `?dry_run=true` only lists what would be deleted (default: `CLEANUP_DRY_RUN`) |
 
 ## Usage Examples
+
+### Run the cleanup manually
+
+```bash
+# See what would be deleted
+curl -X POST -H "Authorization: Bearer your-secret-token" "http://localhost:8000/cleanup?dry_run=true"
+# {"dry_run":true,"deleted":[{"host":"","tag":"v0.9.0"}]}
+
+# Delete for real
+curl -X POST -H "Authorization: Bearer your-secret-token" "http://localhost:8000/cleanup?dry_run=false"
+```
+
+`host` is the domain when `STORAGE_PER_HOST` is enabled, empty otherwise. Without any `CLEANUP_MAX_AGE_DAYS` / `CLEANUP_MAX_IDLE_DAYS` rule, nothing is deleted.
 
 ### Upload a single file
 
