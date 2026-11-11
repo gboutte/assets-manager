@@ -285,3 +285,94 @@ fn cleanup_per_host() {
 
     cleanup_storage();
 }
+
+// --- POST /cleanup ---
+
+use rocket::http::{Header, Status};
+
+fn post_cleanup(client: &Client, query: &str, token: Option<&str>) -> (Status, Option<rocket::serde::json::Value>) {
+    let mut request = client.post(format!("/cleanup{}", query));
+    if let Some(token) = token {
+        request = request.header(Header::new("Authorization", format!("Bearer {}", token)));
+    }
+    let response = request.dispatch();
+    let status = response.status();
+    (status, response.into_json())
+}
+
+#[test]
+#[serial]
+fn cleanup_route_requires_token() {
+    cleanup_storage();
+    let rules = CleanupConfig { max_age_days: Some(30), ..CleanupConfig::default() };
+    let client = Client::tracked(create_rocket(test_config(rules))).unwrap();
+    add_tag("", "old", 40);
+
+    assert_eq!(post_cleanup(&client, "", None).0, Status::Unauthorized);
+    assert_eq!(post_cleanup(&client, "", Some("wrong-token")).0, Status::Unauthorized);
+    assert!(Path::new("./upload/old").exists());
+
+    cleanup_storage();
+}
+
+#[test]
+#[serial]
+fn cleanup_route_dry_run_then_real() {
+    cleanup_storage();
+    let rules = CleanupConfig { max_age_days: Some(30), ..CleanupConfig::default() };
+    let client = Client::tracked(create_rocket(test_config(rules))).unwrap();
+    add_tag("", "old", 40);
+    add_tag("", "new", 5);
+
+    let (status, body) = post_cleanup(&client, "?dry_run=true", Some("test-token"));
+    assert_eq!(status, Status::Ok);
+    let body = body.unwrap();
+    assert_eq!(body["dry_run"], true);
+    assert_eq!(body["deleted"][0]["tag"], "old");
+    assert!(Path::new("./upload/old").exists());
+
+    let (status, body) = post_cleanup(&client, "", Some("test-token"));
+    assert_eq!(status, Status::Ok);
+    let body = body.unwrap();
+    assert_eq!(body["dry_run"], false);
+    assert_eq!(body["deleted"].as_array().unwrap().len(), 1);
+    assert!(!Path::new("./upload/old").exists());
+    assert!(Path::new("./upload/new").exists());
+
+    cleanup_storage();
+}
+
+#[test]
+#[serial]
+fn cleanup_route_follows_configured_dry_run() {
+    cleanup_storage();
+    let rules = CleanupConfig { max_age_days: Some(30), dry_run: true, ..CleanupConfig::default() };
+    let client = Client::tracked(create_rocket(test_config(rules))).unwrap();
+    add_tag("", "old", 40);
+
+    // CLEANUP_DRY_RUN=true: no deletion unless ?dry_run=false is explicit
+    let (_, body) = post_cleanup(&client, "", Some("test-token"));
+    assert_eq!(body.unwrap()["dry_run"], true);
+    assert!(Path::new("./upload/old").exists());
+
+    let (_, body) = post_cleanup(&client, "?dry_run=false", Some("test-token"));
+    assert_eq!(body.unwrap()["dry_run"], false);
+    assert!(!Path::new("./upload/old").exists());
+
+    cleanup_storage();
+}
+
+#[test]
+#[serial]
+fn cleanup_route_without_rules() {
+    cleanup_storage();
+    let client = Client::tracked(create_rocket(test_config(CleanupConfig::default()))).unwrap();
+    std::fs::create_dir_all("./upload/old").unwrap();
+
+    let (status, body) = post_cleanup(&client, "", Some("test-token"));
+    assert_eq!(status, Status::Ok);
+    assert!(body.unwrap()["deleted"].as_array().unwrap().is_empty());
+    assert!(Path::new("./upload/old").exists());
+
+    cleanup_storage();
+}

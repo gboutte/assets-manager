@@ -5,7 +5,11 @@
 // combination can be unit tested. run_cleanup applies them to the storage.
 use std::collections::HashMap;
 use std::path::Path;
+use rocket::{post, State};
+use rocket::http::Status;
+use rocket::serde::json::Json;
 use rocket::serde::Serialize;
+use crate::auth_guard::IsAuth;
 use crate::config::{CleanupConfig, Config};
 use crate::stats::{now, Stats};
 use crate::storage::validate_tag;
@@ -25,6 +29,35 @@ pub struct DeletedTag {
     // "" when STORAGE_PER_HOST is disabled
     pub host: String,
     pub tag: String,
+}
+
+#[derive(Serialize)]
+pub struct CleanupResponse {
+    dry_run: bool,
+    deleted: Vec<DeletedTag>,
+}
+
+// Runs the cleanup now, on every domain (the tokens are global).
+// Without ?dry_run, CLEANUP_DRY_RUN decides: a server configured in dry run never deletes by surprise.
+// Option<IsAuth>: a refused IsAuth would forward and end in a 404 instead of a 401
+#[post("/?<dry_run>")]
+pub async fn cleanup_now(
+    auth: Option<IsAuth>,
+    dry_run: Option<bool>,
+    config: &State<Config>,
+    stats: &State<Stats>,
+) -> Result<Json<CleanupResponse>, Status> {
+    if auth.is_none() {
+        return Err(Status::Unauthorized);
+    }
+    let dry_run = dry_run.unwrap_or(config.cleanup.dry_run);
+    if !config.cleanup.has_rules() {
+        log::warn!("Cleanup requested but no CLEANUP_MAX_AGE_DAYS / CLEANUP_MAX_IDLE_DAYS rule is set");
+    }
+
+    let deleted = run_cleanup(config, stats, dry_run).await;
+    log::info!("Manual cleanup: {} tag(s) {}", deleted.len(), if dry_run { "would be deleted" } else { "deleted" });
+    Ok(Json(CleanupResponse { dry_run, deleted }))
 }
 
 // '*' matches any sequence of characters: "v1.*" matches "v1.0.0" and "v1.2"
